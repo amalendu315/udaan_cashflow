@@ -25,6 +25,7 @@ import { DataTable } from "@/components/ui/data-table";
 import { useAuth, useHotels } from "@/contexts";
 import { formatReadableDate } from "@/lib/utils";
 import { Edit, Trash2 } from "lucide-react";
+import { formatCurrency } from "@/utils";
 
 interface ScheduledPayment {
   id?: number;
@@ -228,12 +229,12 @@ const ScheduledPaymentsTable = () => {
     {
       accessorKey: "total_amount",
       header: "Total Amount",
-      cell: ({ getValue }) => `₹${getValue<number>()?.toFixed(2)}`,
+      cell: ({ getValue }) => `${formatCurrency(getValue<number>())}`,
     },
     {
       accessorKey: "EMI",
       header: "EMI",
-      cell: ({ getValue }) => `₹${getValue<number>()?.toFixed(2)}`,
+      cell: ({ getValue }) => `${formatCurrency(getValue<number>())}`,
     },
     { accessorKey: "payment_term", header: "Payment Term" },
     {
@@ -405,10 +406,10 @@ const ScheduledPaymentsTable = () => {
                   <SelectValue placeholder="Select Payment Term" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="Monthly">Monthly</SelectItem>
-                  <SelectItem value="Quarterly">Quarterly</SelectItem>
-                  <SelectItem value="Half Yearly">Half Yearly</SelectItem>
-                  <SelectItem value="Full Payment">Full Payment</SelectItem>
+                  <SelectItem value="monthly">Monthly</SelectItem>
+                  <SelectItem value="quarterly">Quarterly</SelectItem>
+                  <SelectItem value="half yearly">Half Yearly</SelectItem>
+                  <SelectItem value="full payment">Full Payment</SelectItem>
                 </SelectContent>
               </Select>
               <Input

@@ -24,6 +24,7 @@ import { Input } from "@/components/ui/input";
 import { DataTable } from "@/components/ui/data-table";
 import { useAuth, useHotels } from "@/contexts";
 import { formatReadableDate } from "@/lib/utils";
+import { formatCurrency } from "@/utils";
 
 interface MonthlyPayment {
   id?: number;
@@ -221,7 +222,7 @@ const MonthlyPaymentsTable = () => {
     {
       accessorKey: "amount",
       header: "Amount",
-      cell: ({ getValue }) => `₹${getValue<number>()?.toFixed(2)}`,
+      cell: ({ getValue }) => `${formatCurrency(getValue<number>())}`,
     },
     {
       accessorKey: "end_date",

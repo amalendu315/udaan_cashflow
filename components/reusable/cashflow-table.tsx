@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input";
 import { DataTable } from "@/components/ui/data-table";
 import { useAuth } from "@/contexts";
 import { ColumnDef } from "@tanstack/react-table";
+import { formatCurrency } from "@/utils";
 
 interface Cashflow {
   date: string;
@@ -201,7 +202,7 @@ const CashflowTable: React.FC<CashflowTableProps> = ({
     {
       accessorKey: "amount",
       header: "Amount",
-      cell: ({ row }) => `₹${row.original.amount.toFixed(2)}`,
+      cell: ({ getValue }) => formatCurrency(getValue<number>()),
     },
     { accessorKey: "vendor_name", header: "Vendor Name" },
     { accessorKey: "department_name", header: "Department" },
@@ -232,7 +233,7 @@ const CashflowTable: React.FC<CashflowTableProps> = ({
     {
       accessorKey: "amount",
       header: "Amount",
-      cell: ({ row }) => `₹${row.original.amount.toFixed(2)}`,
+      cell: ({ getValue }) => formatCurrency(getValue<number>()),
     },
     { accessorKey: "ledger_name", header: "Ledger Name" },
     { accessorKey: "day_of_month", header: "Day of Month" },
@@ -266,7 +267,7 @@ const CashflowTable: React.FC<CashflowTableProps> = ({
     {
       accessorKey: "amount",
       header: "Amount",
-      cell: ({ row }) => `₹${row.original.amount.toFixed(2)}`,
+      cell: ({ getValue }) => formatCurrency(getValue<number>()),
     },
     { accessorKey: "payment_term", header: "Payment Term" },
     {
@@ -333,10 +334,10 @@ const CashflowTable: React.FC<CashflowTableProps> = ({
                   {formatReadableDate(row.date)}
                 </td>
                 <td className="py-3 px-6 text-right">
-                  ₹{row.projected_inflow.toFixed(2)}
+                  {formatCurrency(row.projected_inflow)}
                 </td>
                 <td className="py-3 px-6 text-right">
-                  ₹{row.actual_inflow.toFixed(2)}
+                  {formatCurrency(row.actual_inflow)}
                 </td>
                 <td className="py-3 px-6 text-right">
                   <Button
@@ -344,7 +345,7 @@ const CashflowTable: React.FC<CashflowTableProps> = ({
                     onClick={() => fetchPaymentBreakdown(row.date)}
                     disabled={readOnly}
                   >
-                    ₹{row.payment.toFixed(2)}
+                    {formatCurrency(row.payment)}
                   </Button>
                 </td>
                 <td
@@ -352,7 +353,7 @@ const CashflowTable: React.FC<CashflowTableProps> = ({
                     row.closing >= 0 ? "text-green-500" : "text-red-500"
                   }`}
                 >
-                  ₹{row.closing.toFixed(2)}
+                  {formatCurrency(row.closing)}
                 </td>
               </tr>
             ))

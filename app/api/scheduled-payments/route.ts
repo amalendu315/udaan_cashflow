@@ -26,8 +26,26 @@ function calculateEMI(
     "full payment": 1,
   };
 
-  const periods = Math.ceil((totalMonths / 12) * termsPerYear[paymentTerm]);
-  return totalAmount / periods;
+  console.log("Total Amount:", totalAmount);
+  console.log("Payment Term:", paymentTerm);
+  console.log("Total Months:", totalMonths);
+
+  if (totalMonths <= 0) {
+    console.error("Error: Total months cannot be zero or negative");
+    return 0;
+  }
+
+  const periods = Math.max(
+    1,
+    Math.ceil((totalMonths / 12) * termsPerYear[paymentTerm])
+  );
+
+  console.log("Calculated Periods:", periods);
+
+  const emi = totalAmount / periods;
+  console.log("Calculated EMI:", emi);
+
+  return emi;
 }
 
 // Utility function to calculate total months between two dates
@@ -35,12 +53,19 @@ function calculateTotalMonths(startDate: string, endDate: string): number {
   const start = new Date(startDate);
   const end = new Date(endDate);
 
+  if (isNaN(start.getTime()) || isNaN(end.getTime())) {
+    console.error("Error: Invalid date format", { startDate, endDate });
+    return 0;
+  }
+
   const yearDiff = end.getFullYear() - start.getFullYear();
   const monthDiff = end.getMonth() - start.getMonth();
 
-  return yearDiff * 12 + monthDiff + 1; // +1 to include the current month
-}
+  const totalMonths = Math.max(1, yearDiff * 12 + monthDiff + 1); // Ensure at least 1 month
 
+  console.log("Calculated Total Months:", totalMonths);
+  return totalMonths;
+}
 // **GET: Fetch all scheduled payments**
 export async function GET() {
   const pool = await connectDb();
@@ -83,13 +108,32 @@ export async function POST(req: Request) {
   const payload: ScheduledPayment = await req.json();
 
   try {
-    // Calculate total months and EMI
+    // ✅ Ensure total months is at least 1
     const totalMonths = calculateTotalMonths(payload.date, payload.end_date);
+
+    if (totalMonths <= 0) {
+      return NextResponse.json(
+        { message: "Invalid date range for EMI calculation" },
+        { status: 400 }
+      );
+    }
+
     const emi = calculateEMI(
       payload.total_amount,
       payload.payment_term,
       totalMonths
     );
+
+    // ✅ Prevent inserting invalid EMI
+    if (isNaN(emi) || emi === undefined || emi === 0) {
+      return NextResponse.json(
+        { message: "Invalid EMI calculation. Check input values." },
+        { status: 400 }
+      );
+    }
+
+    console.log("Total Months:", totalMonths);
+    console.log("Final EMI Value:", emi);
 
     const query = `
       INSERT INTO scheduled_payments (date, ledger_id, hotel_id, total_amount, EMI, payment_term, end_date)
@@ -119,6 +163,7 @@ export async function POST(req: Request) {
     );
   }
 }
+
 
 // **PUT: Update an existing scheduled payment**
 export async function PUT(req: Request) {

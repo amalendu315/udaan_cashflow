@@ -3,12 +3,11 @@
     "",
     "\\app",
     "\\app\\api",
+    "\\app\\api\\scheduled-payments",
     "\\app\\api\\users",
     "\\app\\api\\users\\[id]",
-    "\\components",
     "\\components\\forms",
     "\\components\\forms\\user",
-    "\\contexts",
     "\\contexts\\user-context"
   ],
   "SelectedNode": "\\package.json",

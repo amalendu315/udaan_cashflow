@@ -24,6 +24,7 @@ import { Button } from "@/components/ui/button";
 import { DataTable } from "@/components/ui/data-table";
 import { useAuth, useHotels } from "@/contexts";
 import { formatReadableDate } from "@/lib/utils";
+import { formatCurrency } from "@/utils";
 
 interface ScheduledPayment {
   id?: number;
@@ -214,12 +215,12 @@ const ScheduledPaymentsTable = () => {
     {
       accessorKey: "total_amount",
       header: "Total Amount",
-      cell: ({ getValue }) => `₹${getValue<number>()?.toFixed(2)}`,
+      cell: ({ getValue }) => `${formatCurrency(getValue<number>())}`,
     },
     {
       accessorKey: "EMI",
       header: "EMI",
-      cell: ({ getValue }) => `₹${getValue<number>()?.toFixed(2)}`,
+      cell: ({ getValue }) => `${formatCurrency(getValue<number>())}`,
     },
     { accessorKey: "payment_term", header: "Payment Term" },
     {

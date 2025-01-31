@@ -14,7 +14,7 @@ import { useEffect, useState, useCallback, useMemo } from "react";
 import { useAuth } from "@/contexts";
 import CreateInflowDialog from "@/components/dialogs/projected-inflows/create";
 import EditInflowDialog from "@/components/dialogs/projected-inflows/update";
-import { FetchWrapper } from "@/utils";
+import { FetchWrapper, formatCurrency } from "@/utils";
 import toast from "react-hot-toast";
 import { formatReadableDate } from "@/lib/utils";
 import { ProjectedInflow } from "@/types";
@@ -169,7 +169,10 @@ const ProjectedInflowPage = () => {
                   </TableCell>
                   {columns.map((column, colIndex) => (
                     <TableCell key={colIndex} className="px-6 py-4">
-                      ₹{row[column as keyof ProjectedInflow] || "0.00"}
+                      ₹
+                      {formatCurrency(
+                        parseFloat(row[column as keyof ProjectedInflow] as string)
+                      ) || "0.00"}
                     </TableCell>
                   ))}
                   <TableCell className="px-6 py-4 font-bold">

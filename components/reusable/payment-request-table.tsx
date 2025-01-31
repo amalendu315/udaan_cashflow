@@ -237,7 +237,7 @@ import { useEffect, useState } from "react";
 import { Button } from "../ui/button";
 import { DataTable } from "../ui/data-table";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "../ui/dialog";
-import { FetchWrapper } from "@/utils";
+import { FetchWrapper, formatCurrency } from "@/utils";
 import { formatReadableDate } from "@/lib/utils";
 
 interface PaymentRequestTableProps {
@@ -331,7 +331,11 @@ const PaymentRequestTable: React.FC<PaymentRequestTableProps> = ({
     { accessorKey: "department_name", header: "Department Name" },
     { accessorKey: "ledger_name", header: "Ledger Name" },
     { accessorKey: "payment_group_name", header: "Payment Group" },
-    { accessorKey: "amount", header: "Amount" },
+    {
+      accessorKey: "amount",
+      header: "Amount",
+      cell: ({ getValue }) => formatCurrency(getValue<number>()),
+    },
     {
       accessorKey: "due_date",
       header: "Due Date",
