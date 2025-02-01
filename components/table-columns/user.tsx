@@ -73,11 +73,11 @@ export const getUserColumns = ({
       header: "Email",
     },
     {
-      accessorKey: "role_id",
+      accessorKey: "role",
       header: "Role",
     },
     {
-      accessorKey: "hotel_id",
+      accessorKey: "hotel",
       header: "Hotel",
     },
     {

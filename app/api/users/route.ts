@@ -6,26 +6,45 @@ import { verifyAuth } from '@/middlewares';
 import { CreateUserRequest } from '@/types';
 import { dbQuery, logAction } from '@/utils';
 
-export async function GET(req:NextRequest):Promise<NextResponse>{
-    const {isAuthorized, message} = await verifyAuth(req, ["Admin","Sub-Admin","User","System-Admin"]);
-    if(!isAuthorized){
-        return NextResponse.json(
-            {message},
-            {status: 403}
-        )
-    };
-    const pool = await connectDb();
-    try {
-        const query = `Select * from users`;
-        const result = await dbQuery(pool, query);
-        return NextResponse.json(result.recordset);
-    } catch (error) {
-        return NextResponse.json(
-            {message: "Failed to fetch users", error},
-            {status: 500}
-        )
-    }
+export async function GET(req: NextRequest): Promise<NextResponse> {
+  const { isAuthorized, message } = await verifyAuth(req, [
+    "Admin",
+    "Sub-Admin",
+    "User",
+    "System-Admin",
+  ]);
+  if (!isAuthorized) {
+    return NextResponse.json({ message }, { status: 403 });
+  }
+
+  const pool = await connectDb();
+  try {
+    // Updated query to join with roles and hotels tables
+    const query = `
+            SELECT 
+                u.Id, 
+                u.username, 
+                u.email, 
+                u.created_at, 
+                u.updated_at, 
+                r.role_name AS role,  -- Get role name from roles table
+                h.name AS hotel        -- Get hotel name from hotels table
+            FROM users u
+            LEFT JOIN roles r ON u.role_id = r.id
+            LEFT JOIN hotels h ON u.hotel_id = h.id
+        `;
+
+    const result = await dbQuery(pool, query);
+
+    return NextResponse.json(result.recordset);
+  } catch (error) {
+    return NextResponse.json(
+      { message: "Failed to fetch users", error },
+      { status: 500 }
+    );
+  }
 }
+
 
 export async function POST(req:NextRequest):Promise<NextResponse>{
     const { isAuthorized, user, message } = await verifyAuth(req, [
