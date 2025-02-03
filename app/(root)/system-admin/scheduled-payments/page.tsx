@@ -124,15 +124,24 @@ const ScheduledPaymentsTable = () => {
       },
       {}
     );
+
+  const normalizeDate = (dateString: string) => {
+    return new Date(dateString).toISOString().split("T")[0]; // Convert to YYYY-MM-DD
+  };
   // Group payments by hotel name and apply filters
   const getFilteredPayments = (hotelName: string) => {
-    const filterDate = filters[hotelName];
+    const filterDate = filters[hotelName]; // Might be in YYYY-MM-DD
     const groupedPayments = payments.filter(
-      (payment) => payment.hotel_name === hotelName
+      (payment) => payment.hotel_name?.trim() === hotelName.trim()
     );
+
     if (filterDate) {
-      return groupedPayments.filter((payment) => payment.date === filterDate);
+      console.log('filterDate', filterDate)
+      return groupedPayments.filter(
+        (payment) => normalizeDate(payment.date) === normalizeDate(filterDate)
+      );
     }
+
     return groupedPayments;
   };
 
@@ -220,11 +229,13 @@ const ScheduledPaymentsTable = () => {
     {
       accessorKey: "date",
       header: "Date",
-      cell: ({ row }) => (
-        <div className="flex space-x-2">
-          {formatReadableDate(row?.original?.date)}
-        </div>
-      ),
+      cell: ({ row }) => {
+        console.log('row.original', row.original)
+        return (
+          <div className="flex space-x-2">
+            {formatReadableDate(row?.original?.date)}
+          </div>
+        );},
     },
     { accessorKey: "ledger_name", header: "Ledger Name" },
     { accessorKey: "hotel_name", header: "Hotel Name" },

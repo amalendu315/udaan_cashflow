@@ -74,13 +74,13 @@ export async function GET() {
     const query = `
       SELECT 
         sp.id,
-        FORMAT(sp.date, 'MMMM dd, yyyy') AS date,
+        FORMAT(sp.date, 'yyyy-MM-dd') AS date,  -- Convert to YYYY-MM-DD
         l.name AS ledger_name,
         h.name AS hotel_name,
         sp.total_amount,
         sp.EMI,
         sp.payment_term,
-        FORMAT(sp.end_date, 'MMMM dd, yyyy') AS end_date
+        FORMAT(sp.end_date, 'yyyy-MM-dd') AS end_date  -- Convert to YYYY-MM-DD
       FROM 
         scheduled_payments sp
       JOIN 
