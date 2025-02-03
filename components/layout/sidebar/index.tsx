@@ -16,7 +16,8 @@ import {
   FileArchiveIcon,
   IndianRupeeIcon,
   ShoppingBag,
-  DatabaseIcon
+  DatabaseIcon,
+  ChartBar
 } from "lucide-react";
 import { useState } from "react";
 import Image from "next/image";
@@ -118,6 +119,11 @@ const Sidebar = ({ isOpen }: { isOpen: boolean }) => {
             label: "Cashflow",
             icon: <DollarSign />,
           },
+          {
+            href: "/admin/charts",
+            label: "Charts",
+            icon: <ChartBar />,
+          },
         ],
       },
       {
@@ -195,6 +201,11 @@ const Sidebar = ({ isOpen }: { isOpen: boolean }) => {
             href: "/system-admin/cashflow",
             label: "Cashflow",
             icon: <DollarSign />,
+          },
+          {
+            href: "/system-admin/charts",
+            label: "Charts",
+            icon: <ChartBar />,
           },
         ],
       },
