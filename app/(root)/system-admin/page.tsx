@@ -48,21 +48,21 @@ const DashboardPage = () => {
       count: counts.scheduledPaymentsCount,
       color: "bg-blue-500",
       icon: <Calendar />,
-      route: "/admin/scheduled-payments",
+      route: "/system-admin/scheduled-payments",
     },
     {
       title: "Monthly Payments",
       count: counts.monthlyPaymentsCount,
       color: "bg-green-500",
       icon: <DollarSign />,
-      route: "/admin/monthly-payments",
+      route: "/system-admin/monthly-payments",
     },
     {
       title: "Payment Requests",
       count: counts.paymentRequestsCount,
       color: "bg-red-500",
       icon: <FileText />,
-      route: "/admin/payment-requests",
+      route: "/system-admin/payment-requests",
     },
   ];
 
