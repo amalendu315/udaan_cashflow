@@ -124,11 +124,9 @@ export async function PUT(req: NextRequest, context: { params: Promise<{ id: str
         .request()
         .input("date", date)
         .input("projected_inflow", totalAmount)
-        .input("actual_inflow", totalAmount) // Keep same as projected inflow
         .query(`
           UPDATE cashflow 
-          SET projected_inflow = @projected_inflow, 
-              actual_inflow = @actual_inflow
+          SET projected_inflow = @projected_inflow
           WHERE date = @date
         `);
 

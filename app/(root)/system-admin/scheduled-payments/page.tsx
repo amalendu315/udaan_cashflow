@@ -145,6 +145,7 @@ const ScheduledPaymentsTable = () => {
   };
 
   const handleCreateOrUpdate = async () => {
+    console.log('modalData', modalData)
     const method = isEditMode ? "PUT" : "POST";
     const url = "/api/scheduled-payments";
 
@@ -164,6 +165,7 @@ const ScheduledPaymentsTable = () => {
           ? prev.map((p) => (p.id === updatedPayment.id ? updatedPayment : p))
           : [...prev, updatedPayment]
       );
+      
 
       setModalData(null);
       setIsDialogOpen(false);

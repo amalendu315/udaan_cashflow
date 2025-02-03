@@ -9,13 +9,15 @@ import { DataTable } from "@/components/ui/data-table";
 import { useAuth } from "@/contexts";
 import { ColumnDef } from "@tanstack/react-table";
 import { formatCurrency } from "@/utils";
+import toast from "react-hot-toast";
 
 interface Cashflow {
   date: string;
   projected_inflow: number;
   actual_inflow: number;
-  payment: number;
+  total_payments: number;
   closing: number;
+  actual_inflow_id?: number;
 }
 
 interface PaymentRequest {
@@ -111,8 +113,14 @@ const CashflowTable: React.FC<CashflowTableProps> = ({
   const { token } = useAuth();
   const [cashflowData, setCashflowData] = useState<Cashflow[]>([]);
   const [filteredData, setFilteredData] = useState<Cashflow[]>([]);
-  const [dialogData, setDialogData] = useState<PaymentBreakdown | null>(null);
+  const [selectedActualInflow, setSelectedActualInflow] =
+    useState<Cashflow | null>(null);
+  const [isActualInflowDialogOpen, setIsActualInflowDialogOpen] =
+    useState(false);
+  const [editedActualInflow, setEditedActualInflow] = useState("");
+
   const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [dialogData, setDialogData] = useState<PaymentBreakdown | null>(null);
   const [selectedDate, setSelectedDate] = useState<string>("");
 
   // Pagination states
@@ -138,12 +146,56 @@ const CashflowTable: React.FC<CashflowTableProps> = ({
       //    isCurrentMonth(row.date, currentMonth, currentYear)
       //  );
 
-       setCashflowData(data);
-       setFilteredData(data);
+      setCashflowData(data);
+      setFilteredData(data);
     } catch (error) {
       console.error("Error fetching cashflow data:", error);
     }
-  },[token]);
+  }, [token]);
+
+  // Open Actual Inflow Edit Dialog
+  const handleEditActualInflow = (row: Cashflow) => {
+    setSelectedActualInflow(row);
+    setEditedActualInflow(row.actual_inflow.toString());
+    setIsActualInflowDialogOpen(true);
+  };
+
+  // Update Actual Inflow API Call
+  const updateActualInflow = async () => {
+    if (!selectedActualInflow) return;
+
+    try {
+      const res = await fetch(`/api/actual-inflow`, {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          date: selectedActualInflow.date,
+          amount: parseFloat(editedActualInflow),
+        }),
+      });
+
+      if (!res.ok) {
+        toast.error("Failed to update actual inflow");
+        throw new Error("Failed to update actual inflow")
+      };
+
+      await fetch(`/api/cashflow/closing`, {
+        method: "PUT",
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      })
+      toast.success("Actual inflow updated successfully");
+
+      setIsActualInflowDialogOpen(false);
+      fetchCashflowData();
+    } catch (error) {
+      console.error("Error updating actual inflow:", error);
+    }
+  };
 
   // Filter data by selected date
   const handleDateFilter = (date: string) => {
@@ -336,8 +388,16 @@ const CashflowTable: React.FC<CashflowTableProps> = ({
                 <td className="py-3 px-6 text-right">
                   {formatCurrency(row.projected_inflow)}
                 </td>
-                <td className="py-3 px-6 text-right">
-                  {formatCurrency(row.actual_inflow)}
+                <td
+                  className="py-3 px-6 text-right"
+                >
+                  <Button
+                    variant="secondary"
+                    onClick={() => handleEditActualInflow(row)}
+                    disabled={readOnly}
+                  >
+                    {formatCurrency(row.actual_inflow)}
+                  </Button>
                 </td>
                 <td className="py-3 px-6 text-right">
                   <Button
@@ -345,7 +405,7 @@ const CashflowTable: React.FC<CashflowTableProps> = ({
                     onClick={() => fetchPaymentBreakdown(row.date)}
                     disabled={readOnly}
                   >
-                    {formatCurrency(row.payment)}
+                    {formatCurrency(row.total_payments)}
                   </Button>
                 </td>
                 <td
@@ -386,6 +446,43 @@ const CashflowTable: React.FC<CashflowTableProps> = ({
             Next
           </Button>
         </div>
+      )}
+
+      {isActualInflowDialogOpen && selectedActualInflow && (
+        <Dialog
+          open={isActualInflowDialogOpen}
+          onOpenChange={setIsActualInflowDialogOpen}
+        >
+          <DialogContent className="max-w-lg w-full">
+            <DialogTitle className="text-xl font-bold">
+              Edit Actual Inflow
+            </DialogTitle>
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700">
+                  Date
+                </label>
+                <Input type="text" value={selectedActualInflow.date} disabled />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700">
+                  Amount
+                </label>
+                <Input
+                  type="number"
+                  value={editedActualInflow}
+                  onChange={(e) => setEditedActualInflow(e.target.value)}
+                />
+              </div>
+              <Button
+                onClick={updateActualInflow}
+                className="w-full bg-blue-500 text-white py-2 rounded"
+              >
+                Save Changes
+              </Button>
+            </div>
+          </DialogContent>
+        </Dialog>
       )}
 
       {/* Payment Breakdown Dialog */}
