@@ -10,6 +10,7 @@ import { useAuth } from "@/contexts";
 import { ColumnDef } from "@tanstack/react-table";
 import { formatCurrency } from "@/utils";
 import toast from "react-hot-toast";
+import { useRouter } from "next/navigation";
 
 interface Cashflow {
   date: string;
@@ -110,7 +111,8 @@ const CashflowTable: React.FC<CashflowTableProps> = ({
   readOnly,
   itemsPerPage = 10, // Default to 10 if not provided
 }) => {
-  const { token } = useAuth();
+  const router = useRouter();
+  const { token, user } = useAuth();
   const [cashflowData, setCashflowData] = useState<Cashflow[]>([]);
   const [filteredData, setFilteredData] = useState<Cashflow[]>([]);
   const [selectedActualInflow, setSelectedActualInflow] =
@@ -386,11 +388,19 @@ const CashflowTable: React.FC<CashflowTableProps> = ({
                   {formatReadableDate(row.date)}
                 </td>
                 <td className="py-3 px-6 text-right">
-                  {formatCurrency(row.projected_inflow)}
+                  <Button
+                    variant="secondary"
+                    onClick={() =>
+                      user?.role === "System-Admin"
+                        ? router.push(`/system-admin/projected-inflow`)
+                        : router.push(`/admin/projected-inflow`)
+                    }
+                    disabled={readOnly}
+                  >
+                    {formatCurrency(row.projected_inflow)}
+                  </Button>
                 </td>
-                <td
-                  className="py-3 px-6 text-right"
-                >
+                <td className="py-3 px-6 text-right">
                   <Button
                     variant="secondary"
                     onClick={() => handleEditActualInflow(row)}
