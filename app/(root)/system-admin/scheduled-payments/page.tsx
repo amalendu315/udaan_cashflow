@@ -154,7 +154,6 @@ const ScheduledPaymentsTable = () => {
   };
 
   const handleCreateOrUpdate = async () => {
-    console.log('modalData', modalData)
     const method = isEditMode ? "PUT" : "POST";
     const url = "/api/scheduled-payments";
 
@@ -178,6 +177,12 @@ const ScheduledPaymentsTable = () => {
 
       setModalData(null);
       setIsDialogOpen(false);
+      await fetch("/api/cashflow/closing",{
+        method: "PUT",
+        headers: {
+            Authorization: `Bearer ${token}`,
+         },
+      })
       fetchPayments();
     } catch (error) {
       console.error("Error saving scheduled payment:", error);
@@ -193,7 +198,12 @@ const ScheduledPaymentsTable = () => {
       });
 
       if (!res.ok) throw new Error("Failed to delete scheduled payment");
-
+      await fetch("/api/cashflow/closing", {
+        method: "PUT",
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
       setPayments((prev) => prev.filter((p) => p.id !== id));
     } catch (error) {
       console.error("Error deleting scheduled payment:", error);

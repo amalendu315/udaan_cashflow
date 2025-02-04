@@ -2,15 +2,14 @@
 // Dependencies
 import { useState, useEffect } from "react";
 import { ColumnDef } from "@tanstack/react-table";
-import {SearchIcon} from "lucide-react"
 
 // Local Imports
 import { DataTable } from "@/components/ui/data-table";
 import Banner from "@/components/reusable/banner";
-import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/contexts";
 import { formatReadableDate } from "@/lib/utils";
+import GlobalSearch from "@/components/reusable/globalSearch";
 
 interface CacheLog {
   id: number;
@@ -27,12 +26,14 @@ interface CacheLog {
 const CacheLogsTable = () => {
   const { token } = useAuth();
   const [logs, setLogs] = useState<CacheLog[]>([]);
-  const [globalFilter, setGlobalFilter] = useState<string>(""); // Global filter state
-  const [filteredLogs, setFilteredLogs] = useState<CacheLog[]>([]); // Filtered logs
+  // const [globalFilter, setGlobalFilter] = useState<string>(""); // Global filter state
+  // const [filteredLogs, setFilteredLogs] = useState<CacheLog[]>([]); // Filtered logs
 
   // Pagination states
   const [currentPage, setCurrentPage] = useState<number>(1);
   const logsPerPage = 20; // Number of logs per page
+
+  const [searchQuery, setSearchQuery] = useState("");
 
   // Fetch logs from API
   useEffect(() => {
@@ -45,7 +46,6 @@ const CacheLogsTable = () => {
         });
         const data = await res.json();
         setLogs(data);
-        setFilteredLogs(data); // Initialize filtered logs
       } catch (error) {
         console.error("Error fetching cache logs:", error);
       }
@@ -54,22 +54,14 @@ const CacheLogsTable = () => {
     fetchLogs();
   }, [token]);
 
-  // Apply global filter
-  useEffect(() => {
-    if (!globalFilter) {
-      setFilteredLogs(logs); // Reset to all logs if no filter
-    } else {
-      const lowerCaseFilter = globalFilter.toLowerCase();
-      setFilteredLogs(
-        logs.filter((log) =>
-          Object.values(log).some((value) =>
-            value.toString().toLowerCase().includes(lowerCaseFilter)
-          )
-        )
-      );
-    }
-    setCurrentPage(1); // Reset to the first page when the filter changes
-  }, [globalFilter, logs]);
+  // Filter vendors based on search query
+  const filteredLogs = logs.filter((log) =>
+    Object.values(log).some(
+      (value) =>
+        typeof value === "string" &&
+        value.toLowerCase().includes(searchQuery.toLowerCase())
+    )
+  );
 
   // Calculate paginated data
   const totalPages = Math.ceil(filteredLogs.length / logsPerPage);
@@ -79,12 +71,20 @@ const CacheLogsTable = () => {
   );
 
   const columns: ColumnDef<CacheLog>[] = [
-    { accessorKey: "id", header: "ID" },
-    { accessorKey: "created_at", header: "Created At", cell: ({ row }) => (
-          <div className="flex space-x-2">
-            {formatReadableDate(row?.original?.created_at)}
-          </div>
-        ), },
+    {
+      id: "serial_number",
+      header: "Sl No.",
+      cell: ({ row }) => row.index + 1, // Generate serial number dynamically
+    },
+    {
+      accessorKey: "created_at",
+      header: "Created At",
+      cell: ({ row }) => (
+        <div className="flex space-x-2">
+          {formatReadableDate(row?.original?.created_at)}
+        </div>
+      ),
+    },
     { accessorKey: "user_name", header: "User Name" },
     { accessorKey: "user_email", header: "User Email" },
     { accessorKey: "role", header: "Role" },
@@ -96,17 +96,11 @@ const CacheLogsTable = () => {
   return (
     <div className="p-6">
       <Banner title="Cache Logs" />
-      <div className="flex justify-end items-center mb-4 gap-6">
-        <label htmlFor="global-filter" className="font-medium">
-          <SearchIcon className="h-6 w-6 hover:bg-gray-400 object-contain" />
-        </label>
-        <Input
-          id="global-filter"
-          type="text"
-          placeholder="Type to search..."
-          value={globalFilter}
-          onChange={(e) => setGlobalFilter(e.target.value)}
-          className="border rounded px-3 py-2 w-full max-w-sm"
+      <div className="mb-4 flex justify-end">
+        <GlobalSearch
+          searchQuery={searchQuery}
+          setSearchQuery={setSearchQuery}
+          placeholder="Search logs..."
         />
       </div>
       <DataTable columns={columns} data={paginatedLogs} />

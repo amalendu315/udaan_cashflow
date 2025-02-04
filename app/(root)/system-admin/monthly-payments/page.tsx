@@ -165,6 +165,12 @@ const MonthlyPaymentsTable = () => {
 
       setModalData(null);
       setIsDialogOpen(false);
+      await fetch("/api/cashflow/closing", {
+        method: "PUT",
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
       fetchPayments();
     } catch (error) {
       console.error("Error saving payment:", error);
@@ -184,6 +190,13 @@ const MonthlyPaymentsTable = () => {
       });
 
       if (!res.ok) throw new Error("Failed to delete payment");
+
+      await fetch("/api/cashflow/closing", {
+        method: "PUT",
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
 
       setPayments((prev) => prev.filter((p) => p.id !== id));
     } catch (error) {
