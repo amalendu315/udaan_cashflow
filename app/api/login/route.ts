@@ -29,9 +29,9 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     const token = jwt.sign(
       { id: user.id, role: user.role_name, hotelId: user.hotel_id, username:user?.username },
       process.env.JWT_SECRET!,
-      { expiresIn: "12h" }
+      { expiresIn: "2h" }
     );
-    const maxAge = 12 * 60 * 60; // 12 hours in seconds
+    const maxAge = 2 * 60 * 60; // 12 hours in seconds
 
     // Return both token and user data, including hotel_name
     return NextResponse.json(

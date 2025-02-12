@@ -8,14 +8,23 @@ import {
   useEffect,
   ReactNode,
 } from "react";
+import {jwtDecode} from "jwt-decode";
 
 interface User {
   Id: number;
   email: string;
   hotel_id: number;
   hotel_name: string;
-  role_id:string
+  role_id: string;
   role: string;
+  username: string;
+}
+
+interface DecodedToken {
+  exp: number; // Expiration time in UNIX timestamp
+  id: number;
+  role: string;
+  hotelId: number;
   username: string;
 }
 
@@ -25,14 +34,31 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const router = useRouter();
   const [token, setToken] = useState<string | null>(null);
   const [user, setUser] = useState<User | null>(null);
+
   useEffect(() => {
     const storedToken = localStorage.getItem("auth_token");
     const storedUser = localStorage.getItem("auth_user");
+
     if (storedToken && storedUser) {
-      setToken(storedToken);
-      setUser(JSON.parse(storedUser));
+      const decoded: DecodedToken = jwtDecode(storedToken);
+
+      // 🕒 Check if token is expired
+      const currentTime = Date.now() / 1000; // Convert to seconds
+      if (decoded.exp < currentTime) {
+        logout(); // 🔴 If expired, logout user
+      } else {
+        setToken(storedToken);
+        setUser(JSON.parse(storedUser));
+
+        // ✅ Auto logout when token expires
+        const timeUntilExpiry = (decoded.exp - currentTime) * 1000;
+        setTimeout(() => {
+          logout();
+        }, timeUntilExpiry);
+      }
     }
   }, []);
+
   const login = (token: string, user: User) => {
     setToken(token);
     setUser(user);
@@ -40,6 +66,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     localStorage.setItem("auth_user", JSON.stringify(user));
     router.push("/");
   };
+
   const logout = () => {
     setToken(null);
     setUser(null);
@@ -47,7 +74,9 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     localStorage.removeItem("auth_user");
     router.push("/login");
   };
+
   const isAuthenticated = !!token;
+
   return (
     <AuthContext.Provider
       value={{ token, user, login, logout, isAuthenticated }}
