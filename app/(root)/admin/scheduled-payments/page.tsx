@@ -24,7 +24,9 @@ import { Button } from "@/components/ui/button";
 import { DataTable } from "@/components/ui/data-table";
 import { useAuth, useHotels } from "@/contexts";
 import { formatReadableDate } from "@/lib/utils";
+import { Edit } from "lucide-react";
 import { formatCurrency } from "@/utils";
+import DateRangeFilter from "@/components/reusable/date-range-filter";
 
 interface ScheduledPayment {
   id?: number;
@@ -52,29 +54,30 @@ const ScheduledPaymentsTable = () => {
   const [modalData, setModalData] = useState<Partial<ScheduledPayment> | null>(
     null
   );
+  const [startDate, setStartDate] = useState<string>("");
+  const [endDate, setEndDate] = useState<string>("");
   const [isEditMode, setIsEditMode] = useState(false);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
-  const [filters, setFilters] = useState<Record<string, string>>({}); // Filters by date for each hotel
+  const [filters] = useState<Record<string, string>>({}); // Filters by date for each hotel
 
   // Fetch Scheduled Payments
-   const fetchPayments = useCallback(async () => {
-     try {
-       const res = await fetch("/api/scheduled-payments");
-       if (!res.ok) throw new Error("Failed to fetch scheduled payments");
-       const data = await res.json();
-       setPayments(
-         data.map((payment: ScheduledPayment) => ({
-           ...payment,
-           date: new Date(payment.date).toISOString().split("T")[0],
-           end_date: new Date(payment.end_date).toISOString().split("T")[0],
-         }))
-       );
-     } catch (error) {
-       console.error("Error fetching scheduled payments:", error);
-     }
-   }, []);
-
-   const calculateEMI = (totalAmount: number, paymentTerm: string) => {
+  const fetchPayments = useCallback(async () => {
+    try {
+      const res = await fetch("/api/scheduled-payments");
+      if (!res.ok) throw new Error("Failed to fetch scheduled payments");
+      const data = await res.json();
+      setPayments(
+        data.map((payment: ScheduledPayment) => ({
+          ...payment,
+          date: new Date(payment.date).toISOString().split("T")[0],
+          end_date: new Date(payment.end_date).toISOString().split("T")[0],
+        }))
+      );
+    } catch (error) {
+      console.error("Error fetching scheduled payments:", error);
+    }
+  }, []);
+  const calculateEMI = (totalAmount: number, paymentTerm: string) => {
     switch (paymentTerm.toLowerCase()) {
       case "monthly":
         return totalAmount / 12;
@@ -88,52 +91,68 @@ const ScheduledPaymentsTable = () => {
   };
 
   // Fetch Ledgers
- const fetchLedgers = useCallback(async () => {
-   try {
-     const res = await fetch("/api/mp-ledgers", {
-       headers: {
-         Authorization: `Bearer ${token}`,
-       },
-     });
-     if (!res.ok) throw new Error("Failed to fetch ledgers");
-     const data = await res.json();
-     setLedgers(data);
-   } catch (error) {
-     console.error("Error fetching ledgers:", error);
-   }
- }, [token]);
+  const fetchLedgers = useCallback(async () => {
+    try {
+      const res = await fetch("/api/mp-ledgers", {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+      if (!res.ok) throw new Error("Failed to fetch ledgers");
+      const data = await res.json();
+      setLedgers(data);
+    } catch (error) {
+      console.error("Error fetching ledgers:", error);
+    }
+  }, [token]);
 
   useEffect(() => {
     fetchPayments();
     fetchLedgers();
   }, [fetchPayments, fetchLedgers]);
 
-    const clearFilter = (hotelName: string) => {
-      setFilters((prev) => ({
-        ...prev,
-        [hotelName]: "",
-      }));
-    };
 
-  // Group payments by hotel name and apply filters
-  const getFilteredPayments = (hotelName: string) => {
-    const filterDate = filters[hotelName];
-    const groupedPayments = payments.filter(
-      (payment) => payment.hotel_name === hotelName
-    );
-    if (filterDate) {
-      return groupedPayments.filter((payment) => payment.date === filterDate);
-    }
-    return groupedPayments;
+  const groupedPayments = payments.reduce(
+    (acc: Record<string, ScheduledPayment[]>, payment) => {
+      if (!payment.hotel_name) return acc;
+      if (!acc[payment.hotel_name]) acc[payment.hotel_name] = [];
+      acc[payment.hotel_name].push(payment);
+      return acc;
+    },
+    {}
+  );
+
+  const normalizeDate = (dateString: string) => {
+    return new Date(dateString).toISOString().split("T")[0]; // Convert to YYYY-MM-DD
   };
+  // Group payments by hotel name and apply filters
+const getFilteredPayments = (hotelName: string) => {
+  const filterDate = filters[hotelName]; // Single date filter
+  let groupedPayments = payments.filter(
+    (payment) => payment.hotel_name?.trim() === hotelName.trim()
+  );
+
+  // Apply Date Range Filtering
+  if (startDate && endDate) {
+    const start = new Date(startDate).setHours(0, 0, 0, 0);
+    const end = new Date(endDate).setHours(23, 59, 59, 999);
+
+    groupedPayments = groupedPayments.filter((payment) => {
+      const paymentDate = new Date(payment.date).setHours(0, 0, 0, 0);
+      return paymentDate >= start && paymentDate <= end;
+    });
+  }
+
+  if (filterDate) {
+    return groupedPayments.filter(
+      (payment) => normalizeDate(payment.date) === normalizeDate(filterDate)
+    );
+  }
+
+  return groupedPayments;
+};
 
   // Handle filter change for each hotel
-  const handleFilterChange = (hotelName: string, value: string) => {
-    setFilters((prev) => ({
-      ...prev,
-      [hotelName]: value,
-    }));
-  };
 
   const handleCreateOrUpdate = async () => {
     const method = isEditMode ? "PUT" : "POST";
@@ -170,27 +189,26 @@ const ScheduledPaymentsTable = () => {
     }
   };
 
-  const handleDelete = async (id: number) => {
-    try {
-      const res = await fetch("/api/scheduled-payments", {
-        method: "DELETE",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ id }),
-      });
+  // const handleDelete = async (id: number) => {
+  //   try {
+  //     const res = await fetch("/api/scheduled-payments", {
+  //       method: "DELETE",
+  //       headers: { "Content-Type": "application/json" },
+  //       body: JSON.stringify({ id }),
+  //     });
 
-      if (!res.ok) throw new Error("Failed to delete scheduled payment");
-      await fetch("/api/cashflow/closing", {
-        method: "PUT",
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      });
-
-      setPayments((prev) => prev.filter((p) => p.id !== id));
-    } catch (error) {
-      console.error("Error deleting scheduled payment:", error);
-    }
-  };
+  //     if (!res.ok) throw new Error("Failed to delete scheduled payment");
+  //     await fetch("/api/cashflow/closing", {
+  //       method: "PUT",
+  //       headers: {
+  //         Authorization: `Bearer ${token}`,
+  //       },
+  //     });
+  //     setPayments((prev) => prev.filter((p) => p.id !== id));
+  //   } catch (error) {
+  //     console.error("Error deleting scheduled payment:", error);
+  //   }
+  // };
 
   const openCreateModal = () => {
     setModalData({
@@ -207,20 +225,48 @@ const ScheduledPaymentsTable = () => {
   };
 
   const openEditModal = (payment: ScheduledPayment) => {
-    setModalData(payment);
+    // Find corresponding Ledger and Hotel IDs
+    const foundLedger = ledgers.find(
+      (ledger) => ledger.name === payment.ledger_name
+    );
+    const foundHotel = hotels.find(
+      (hotel) => hotel.name === payment.hotel_name
+    );
+
+    setModalData({
+      id: payment.id,
+      date: payment.date,
+      ledger_id: foundLedger ? foundLedger.id : 0, // Ensure ledger_id is set
+      ledger_name: payment.ledger_name,
+      hotel_id: foundHotel ? foundHotel.Id : 0, // Ensure hotel_id is set
+      hotel_name: payment.hotel_name,
+      total_amount: payment.total_amount,
+      EMI: payment.EMI,
+      payment_term: payment.payment_term,
+      end_date: payment.end_date,
+    });
+
     setIsEditMode(true);
     setIsDialogOpen(true);
   };
 
   const columns: ColumnDef<ScheduledPayment>[] = [
     {
+      id: "serial_number",
+      header: "Sl No.",
+      cell: ({ row }) => row.index + 1, // Generate serial number dynamically
+    },
+    {
       accessorKey: "date",
       header: "Date",
-      cell: ({ row }) => (
-        <div className="flex space-x-2">
-          {formatReadableDate(row?.original?.date)}
-        </div>
-      ),
+      cell: ({ row }) => {
+        console.log("row.original", row.original);
+        return (
+          <div className="flex space-x-2">
+            {formatReadableDate(row?.original?.date)}
+          </div>
+        );
+      },
     },
     { accessorKey: "ledger_name", header: "Ledger Name" },
     { accessorKey: "hotel_name", header: "Hotel Name" },
@@ -249,15 +295,22 @@ const ScheduledPaymentsTable = () => {
       header: "Actions",
       cell: ({ row }: { row: Row<ScheduledPayment> }) => (
         <div className="flex gap-2">
-          <Button variant="outline" onClick={() => openEditModal(row.original)}>
-            Edit
-          </Button>
           <Button
-            variant="destructive"
-            onClick={() => handleDelete(row.original.id as number)}
+            variant="default"
+            size={"sm"}
+            onClick={() => openEditModal(row.original)}
+            className="bg-blue-500"
           >
-            Delete
+            <Edit className="h-5 w-5 object-contain" />
           </Button>
+          {/* <Button
+            variant="destructive"
+            size="sm"
+            onClick={() => handleDelete(row?.original?.id as number)}
+            className="bg-red-500 text-white hover:bg-red-600"
+          >
+            <Trash2 className="h-5 w-5 object-contain" />
+          </Button> */}
         </div>
       ),
     },
@@ -270,30 +323,36 @@ const ScheduledPaymentsTable = () => {
         <Button onClick={openCreateModal}>Create New</Button>
       </div>
 
-      {hotels.map((hotel) => (
-        <div key={hotel.Id} className="mb-8">
+      {Object.keys(groupedPayments).map((hotelName) => (
+        <div key={hotelName} className="mb-8">
           <div className="flex justify-between items-center mb-4">
-            <h3 className="text-xl font-bold">{hotel.name}</h3>
-            <div className="flex items-center gap-2">
+            <h3 className="text-xl font-bold">{hotelName}</h3>
+            {/* <div className="flex items-center gap-2">
               <label
-                htmlFor={`filter-${hotel?.name}`}
+                htmlFor={`filter-${hotelName}`}
                 className="font-medium whitespace-nowrap"
               >
                 Filter by Date:
               </label>
               <Input
                 type="date"
-                id={`filter-${hotel.Id}`}
-                value={filters[hotel.name] || ""}
-                onChange={(e) => handleFilterChange(hotel.name, e.target.value)}
+                id={`filter-${hotelName}`}
+                value={filters[hotelName] || ""}
+                onChange={(e) => handleFilterChange(hotelName, e.target.value)}
                 className="border rounded px-3 py-2"
               />
-              <Button variant="outline" onClick={() => clearFilter(hotel.name)}>
+              <Button variant="outline" onClick={() => clearFilter(hotelName)}>
                 Clear Filter
               </Button>
-            </div>
+            </div> */}
+            <DateRangeFilter
+              onFilterChange={(start, end) => {
+                setStartDate(start);
+                setEndDate(end);
+              }}
+            />
           </div>
-          <DataTable columns={columns} data={getFilteredPayments(hotel.name)} />
+          <DataTable columns={columns} data={getFilteredPayments(hotelName)} />
         </div>
       ))}
 
@@ -395,10 +454,10 @@ const ScheduledPaymentsTable = () => {
                   <SelectValue placeholder="Select Payment Term" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="Monthly">Monthly</SelectItem>
-                  <SelectItem value="Quarterly">Quarterly</SelectItem>
-                  <SelectItem value="Half Yearly">Half Yearly</SelectItem>
-                  <SelectItem value="Full Payment">Full Payment</SelectItem>
+                  <SelectItem value="monthly">Monthly</SelectItem>
+                  <SelectItem value="quarterly">Quarterly</SelectItem>
+                  <SelectItem value="half yearly">Half Yearly</SelectItem>
+                  <SelectItem value="full payment">Full Payment</SelectItem>
                 </SelectContent>
               </Select>
               <Input

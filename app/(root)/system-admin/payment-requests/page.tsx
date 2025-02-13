@@ -85,7 +85,7 @@ const PaymentRequestsPage = () => {
                 {table.title}
               </h2>
               <PaymentRequestTable
-                role="Admin"
+                role="System-Admin"
                 filter={table.filter}
               />
             </div>

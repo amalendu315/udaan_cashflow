@@ -239,6 +239,7 @@ import { DataTable } from "../ui/data-table";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "../ui/dialog";
 import { FetchWrapper, formatCurrency } from "@/utils";
 import { formatReadableDate } from "@/lib/utils";
+import DateRangeFilter from "./date-range-filter";
 
 interface PaymentRequestTableProps {
   role: "System-Admin"|"Admin" | "Sub-Admin" | "User";
@@ -249,7 +250,6 @@ interface PaymentRequestTableProps {
 const PaymentRequestTable: React.FC<PaymentRequestTableProps> = ({
   role,
   filter,
-  dueDateFilter = "", // Default to an empty string
 }) => {
   const { token } = useAuth();
   const { fetchRequests, requests } = useRequests();
@@ -262,31 +262,32 @@ const PaymentRequestTable: React.FC<PaymentRequestTableProps> = ({
   const [remarks, setRemarks] = useState<string>("");
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [newStatus, setNewStatus] = useState<string>("");
-  const [localDueDateFilter, setLocalDueDateFilter] =
-    useState<string>(dueDateFilter);
-
+  // 🔹 Date Range Filter State
+  const [startDate, setStartDate] = useState<string>("");
+  const [endDate, setEndDate] = useState<string>("");
   const fetchWrapper = new FetchWrapper(() => token);
 
   // Filter requests based on the `filter` and `localDueDateFilter` props
-  useEffect(() => {
-    let filtered = requests;
+useEffect(() => {
+  let filtered = [...requests]; // Clone the array before filtering
 
-    if (filter) {
-      filtered = filtered.filter((request) => request.status === filter);
-    }
+  if (filter) {
+    filtered = filtered.filter((request) => request.status === filter);
+  }
 
-    if (localDueDateFilter) {
-      const selectedDate = new Date(localDueDateFilter).setHours(0, 0, 0, 0);
+  if (startDate && endDate) {
+    const start = new Date(startDate).setHours(0, 0, 0, 0);
+    const end = new Date(endDate).setHours(23, 59, 59, 999);
 
-      filtered = filtered.filter((request) => {
-        const dueDate = new Date(request.due_date).setHours(0, 0, 0, 0);
-        return dueDate === selectedDate; // Compare dates ignoring time
-      });
-    }
+    filtered = filtered.filter((request) => {
+      const dueDate = new Date(request.due_date).setHours(0, 0, 0, 0);
+      return dueDate >= start && dueDate <= end;
+    });
+  }
 
-    setFilteredRequests(filtered);
-    console.log('filtered', filtered)
-  }, [filter, localDueDateFilter, requests]);
+  setFilteredRequests(filtered);
+}, [filter, startDate, endDate, requests]);
+
 
   const handleActionClick = (request: PaymentRequest, status: string) => {
     setSelectedRequest(request);
@@ -414,7 +415,7 @@ const PaymentRequestTable: React.FC<PaymentRequestTableProps> = ({
         );
       },
     },
-    ...(role === "Admin" || role === "Sub-Admin"
+    ...(role === "Admin" || role === "Sub-Admin" || role === "System-Admin"
       ? [
           {
             id: "actions",
@@ -459,19 +460,13 @@ const PaymentRequestTable: React.FC<PaymentRequestTableProps> = ({
 
   return (
     <div className="bg-white p-6 rounded shadow space-y-8">
-      {/* Date Filter Input */}
-      <div className="flex justify-end items-center space-x-4 mb-4">
-        <label htmlFor="due-date-filter" className="font-medium text-gray-700">
-          Filter by Due Date:
-        </label>
-        <input
-          type="date"
-          id="due-date-filter"
-          value={localDueDateFilter}
-          onChange={(e) => setLocalDueDateFilter(e.target.value)}
-          className="border rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
-        />
-      </div>
+      <DateRangeFilter
+        onFilterChange={(start, end) => {
+          console.log("Filtering from:", start, "to:", end); // Debugging Log
+          setStartDate(start);
+          setEndDate(end);
+        }}
+      />
 
       {/* Data Table */}
       <DataTable

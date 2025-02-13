@@ -26,6 +26,7 @@ import { useAuth, useHotels } from "@/contexts";
 import { formatReadableDate } from "@/lib/utils";
 import { Edit, Trash2 } from "lucide-react";
 import { formatCurrency } from "@/utils";
+import DateRangeFilter from "@/components/reusable/date-range-filter";
 
 interface ScheduledPayment {
   id?: number;
@@ -53,9 +54,11 @@ const ScheduledPaymentsTable = () => {
   const [modalData, setModalData] = useState<Partial<ScheduledPayment> | null>(
     null
   );
+  const [startDate, setStartDate] = useState<string>("");
+  const [endDate, setEndDate] = useState<string>("");
   const [isEditMode, setIsEditMode] = useState(false);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
-  const [filters, setFilters] = useState<Record<string, string>>({}); // Filters by date for each hotel
+  const [filters] = useState<Record<string, string>>({}); // Filters by date for each hotel
 
   // Fetch Scheduled Payments
   const fetchPayments = useCallback(async () => {
@@ -108,13 +111,6 @@ const ScheduledPaymentsTable = () => {
     fetchLedgers();
   }, [fetchPayments, fetchLedgers]);
 
-    const clearFilter = (hotelName: string) => {
-      setFilters((prev) => ({
-        ...prev,
-        [hotelName]: "",
-      }));
-    };
-
     const groupedPayments = payments.reduce(
       (acc: Record<string, ScheduledPayment[]>, payment) => {
         if (!payment.hotel_name) return acc;
@@ -129,29 +125,33 @@ const ScheduledPaymentsTable = () => {
     return new Date(dateString).toISOString().split("T")[0]; // Convert to YYYY-MM-DD
   };
   // Group payments by hotel name and apply filters
-  const getFilteredPayments = (hotelName: string) => {
-    const filterDate = filters[hotelName]; // Might be in YYYY-MM-DD
-    const groupedPayments = payments.filter(
-      (payment) => payment.hotel_name?.trim() === hotelName.trim()
+const getFilteredPayments = (hotelName: string) => {
+  const filterDate = filters[hotelName]; // Single date filter
+  let groupedPayments = payments.filter(
+    (payment) => payment.hotel_name?.trim() === hotelName.trim()
+  );
+
+  // Apply Date Range Filtering
+  if (startDate && endDate) {
+    const start = new Date(startDate).setHours(0, 0, 0, 0);
+    const end = new Date(endDate).setHours(23, 59, 59, 999);
+
+    groupedPayments = groupedPayments.filter((payment) => {
+      const paymentDate = new Date(payment.date).setHours(0, 0, 0, 0);
+      return paymentDate >= start && paymentDate <= end;
+    });
+  }
+
+  if (filterDate) {
+    return groupedPayments.filter(
+      (payment) => normalizeDate(payment.date) === normalizeDate(filterDate)
     );
+  }
 
-    if (filterDate) {
-      console.log('filterDate', filterDate)
-      return groupedPayments.filter(
-        (payment) => normalizeDate(payment.date) === normalizeDate(filterDate)
-      );
-    }
-
-    return groupedPayments;
-  };
+  return groupedPayments;
+};
 
   // Handle filter change for each hotel
-  const handleFilterChange = (hotelName: string, value: string) => {
-    setFilters((prev) => ({
-      ...prev,
-      [hotelName]: value,
-    }));
-  };
 
   const handleCreateOrUpdate = async () => {
     const method = isEditMode ? "PUT" : "POST";
@@ -224,11 +224,29 @@ const ScheduledPaymentsTable = () => {
     setIsDialogOpen(true);
   };
 
-  const openEditModal = (payment: ScheduledPayment) => {
-    setModalData(payment);
-    setIsEditMode(true);
-    setIsDialogOpen(true);
-  };
+const openEditModal = (payment: ScheduledPayment) => {
+  // Find corresponding Ledger and Hotel IDs
+  const foundLedger = ledgers.find(
+    (ledger) => ledger.name === payment.ledger_name
+  );
+  const foundHotel = hotels.find((hotel) => hotel.name === payment.hotel_name);
+
+  setModalData({
+    id: payment.id,
+    date: payment.date,
+    ledger_id: foundLedger ? foundLedger.id : 0, // Ensure ledger_id is set
+    ledger_name: payment.ledger_name,
+    hotel_id: foundHotel ? foundHotel.Id : 0, // Ensure hotel_id is set
+    hotel_name: payment.hotel_name,
+    total_amount: payment.total_amount,
+    EMI: payment.EMI,
+    payment_term: payment.payment_term,
+    end_date: payment.end_date,
+  });
+
+  setIsEditMode(true);
+  setIsDialogOpen(true);
+};
 
   const columns: ColumnDef<ScheduledPayment>[] = [
     {
@@ -304,10 +322,10 @@ const ScheduledPaymentsTable = () => {
       </div>
 
       {Object.keys(groupedPayments).map((hotelName) => (
-          <div key={hotelName} className="mb-8">
+        <div key={hotelName} className="mb-8">
           <div className="flex justify-between items-center mb-4">
             <h3 className="text-xl font-bold">{hotelName}</h3>
-            <div className="flex items-center gap-2">
+            {/* <div className="flex items-center gap-2">
               <label
                 htmlFor={`filter-${hotelName}`}
                 className="font-medium whitespace-nowrap"
@@ -324,12 +342,17 @@ const ScheduledPaymentsTable = () => {
               <Button variant="outline" onClick={() => clearFilter(hotelName)}>
                 Clear Filter
               </Button>
-            </div>
+            </div> */}
+            <DateRangeFilter
+              onFilterChange={(start, end) => {
+                setStartDate(start);
+                setEndDate(end);
+              }}
+            />
           </div>
           <DataTable columns={columns} data={getFilteredPayments(hotelName)} />
         </div>
-        
-))}
+      ))}
 
       {isDialogOpen && (
         <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
@@ -403,7 +426,7 @@ const ScheduledPaymentsTable = () => {
                 type="number"
                 value={modalData?.total_amount?.toString() || ""}
                 onChange={(e) =>
-                  setModalData((prev) => {  
+                  setModalData((prev) => {
                     const newTotalAmount = parseFloat(e.target.value);
                     return {
                       ...prev,

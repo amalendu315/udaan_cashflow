@@ -329,7 +329,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
       const status = ["System-Admin", "Admin", "Sub-Admin"].includes(
         user?.role || ""
       )
-        ? "Transfer Completed"
+        ? "Transfer Pending"
         : "Pending";
 
       // Insert Payment Request
@@ -374,13 +374,13 @@ SELECT id, due_date FROM @InsertedValues;
      const paymentDueDate = result.recordset[0].due_date;
 
       // If status is "Transfer Completed", update the cashflow table
-      if (status === "Transfer Completed") {
+      if (status === "Transfer Pending") {
         const updateCashflowQuery = `
           MERGE INTO cashflow AS target
           USING (
             SELECT @due_date AS date, SUM(amount) AS total_payments
             FROM payment_requests
-            WHERE status = 'Transfer Completed' AND FORMAT(due_date, 'yyyy-MM-dd') = FORMAT(@due_date, 'yyyy-MM-dd')
+            WHERE status = 'Transfer Pending' AND FORMAT(due_date, 'yyyy-MM-dd') = FORMAT(@due_date, 'yyyy-MM-dd')
             GROUP BY due_date
           ) AS source
           ON target.date = source.date
