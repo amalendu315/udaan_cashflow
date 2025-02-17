@@ -19,12 +19,18 @@ import {
   DialogTitle,
   DialogFooter,
 } from "@/components/ui/dialog";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { DataTable } from "@/components/ui/data-table";
 import { useAuth, useHotels } from "@/contexts";
 import { formatReadableDate } from "@/lib/utils";
-import { Edit, Trash2 } from "lucide-react";
+import { CheckSquare, Edit, Trash2 } from "lucide-react";
 import { formatCurrency } from "@/utils";
 import DateRangeFilter from "@/components/reusable/date-range-filter";
 
@@ -39,6 +45,7 @@ interface ScheduledPayment {
   EMI: number;
   payment_term: string;
   end_date: string;
+  payment_status:string;
 }
 
 interface Ledger {
@@ -47,7 +54,7 @@ interface Ledger {
 }
 
 const ScheduledPaymentsTable = () => {
-  const { token } = useAuth();
+  const { token, user } = useAuth();
   const { hotels } = useHotels();
   const [payments, setPayments] = useState<ScheduledPayment[]>([]);
   const [ledgers, setLedgers] = useState<Ledger[]>([]);
@@ -177,12 +184,6 @@ const getFilteredPayments = (hotelName: string) => {
 
       setModalData(null);
       setIsDialogOpen(false);
-      await fetch("/api/cashflow/closing",{
-        method: "PUT",
-        headers: {
-            Authorization: `Bearer ${token}`,
-         },
-      })
       fetchPayments();
     } catch (error) {
       console.error("Error saving scheduled payment:", error);
@@ -198,12 +199,6 @@ const getFilteredPayments = (hotelName: string) => {
       });
 
       if (!res.ok) throw new Error("Failed to delete scheduled payment");
-      await fetch("/api/cashflow/closing", {
-        method: "PUT",
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      });
       setPayments((prev) => prev.filter((p) => p.id !== id));
     } catch (error) {
       console.error("Error deleting scheduled payment:", error);
@@ -219,6 +214,7 @@ const getFilteredPayments = (hotelName: string) => {
       payment_term: "Full Payment",
       EMI: 0,
       end_date: "",
+      payment_status: "Pending",
     });
     setIsEditMode(false);
     setIsDialogOpen(true);
@@ -242,10 +238,52 @@ const openEditModal = (payment: ScheduledPayment) => {
     EMI: payment.EMI,
     payment_term: payment.payment_term,
     end_date: payment.end_date,
+    payment_status: payment.payment_status,
   });
 
   setIsEditMode(true);
   setIsDialogOpen(true);
+};
+
+const handlePaymentStatusButtonClick = async (
+  payment: ScheduledPayment,
+  newStatus: string
+) => {
+  if (!payment.id) {
+    console.error("Error: Payment ID is missing!");
+    return;
+  }
+
+  try {
+    const res = await fetch("/api/scheduled-payments", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        id: payment.id, // ✅ Always use `payment.id` (guaranteed to be present)
+        date: payment.date,
+        ledger_id: payment.ledger_id,
+        hotel_id: payment.hotel_id,
+        total_amount: payment.total_amount,
+        EMI: payment.EMI,
+        payment_term: payment.payment_term,
+        end_date: payment.end_date,
+        payment_status: newStatus, // ✅ Directly update status
+      }),
+    });
+
+    if (!res.ok) throw new Error("Failed to save scheduled payment");
+
+    const updatedPayment = await res.json();
+
+    // ✅ Update state properly
+    setPayments((prev) =>
+      prev.map((p) => (p.id === updatedPayment.id ? updatedPayment : p))
+    );
+
+    fetchPayments(); // ✅ Refresh payments after update
+  } catch (error) {
+    console.error("Error updating scheduled payment:", error);
+  }
 };
 
   const columns: ColumnDef<ScheduledPayment>[] = [
@@ -258,12 +296,13 @@ const openEditModal = (payment: ScheduledPayment) => {
       accessorKey: "date",
       header: "Date",
       cell: ({ row }) => {
-        console.log('row.original', row.original)
+        console.log("row.original", row.original);
         return (
           <div className="flex space-x-2">
             {formatReadableDate(row?.original?.date)}
           </div>
-        );},
+        );
+      },
     },
     { accessorKey: "ledger_name", header: "Ledger Name" },
     { accessorKey: "hotel_name", header: "Hotel Name" },
@@ -288,26 +327,101 @@ const openEditModal = (payment: ScheduledPayment) => {
       ),
     },
     {
+      accessorKey: "payment_status",
+      header: "Payment Status",
+      cell: ({ getValue }) => {
+        const status = getValue<string>();
+
+        const getStatusStyle = (status: string) => {
+          switch (status) {
+            case "Completed":
+              return "bg-green-500";
+            case "Pending":
+              return "bg-yellow-500";
+            default:
+              return "bg-gray-500";
+          }
+        };
+
+        return (
+          <span
+            className={`inline-block px-4 py-1 rounded-full text-sm text-white ${getStatusStyle(
+              status
+            )}`}
+            style={{
+              whiteSpace: "nowrap",
+              overflow: "hidden",
+              textOverflow: "ellipsis",
+            }}
+            title={status}
+          >
+            {status}
+          </span>
+        );
+      },
+    },
+    {
       accessorKey: "actions",
       header: "Actions",
       cell: ({ row }: { row: Row<ScheduledPayment> }) => (
         <div className="flex gap-2">
-          <Button
-            variant="default"
-            size={"sm"}
-            onClick={() => openEditModal(row.original)}
-            className="bg-blue-500"
-          >
-            <Edit className="h-5 w-5 object-contain" />
-          </Button>
-          <Button
-            variant="destructive"
-            size="sm"
-            onClick={() => handleDelete(row?.original?.id as number)}
-            className="bg-red-500 text-white hover:bg-red-600"
-          >
-            <Trash2 className="h-5 w-5 object-contain" />
-          </Button>
+          {row?.original?.payment_status === "Completed" && (
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger>
+                  <Button
+                    variant="default"
+                    size={"sm"}
+                    onClick={() => openEditModal(row.original)}
+                    className="bg-blue-500"
+                  >
+                    <Edit className="h-5 w-5 object-contain" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>
+                  <p>Edit Payment</p>
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
+          )}
+          {row?.original?.payment_status === "Pending" && (
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger>
+                  <Button
+                    variant="default"
+                    size={"sm"}
+                    onClick={() =>
+                      handlePaymentStatusButtonClick(row.original, "Completed")
+                    }
+                    className="bg-green-500"
+                  >
+                    <CheckSquare className="h-5 w-5 object-contain" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>
+                  <p>Mark Payment Status as Completed</p>
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
+          )}
+          <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger>
+                <Button
+                  variant="destructive"
+                  size="sm"
+                  onClick={() => handleDelete(row?.original?.id as number)}
+                  className="bg-red-500 text-white hover:bg-red-600"
+                >
+                  <Trash2 className="h-5 w-5 object-contain" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>
+                <p>Delete Payment</p>
+              </TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
         </div>
       ),
     },
@@ -458,6 +572,17 @@ const openEditModal = (payment: ScheduledPayment) => {
                   <SelectItem value="full payment">Full Payment</SelectItem>
                 </SelectContent>
               </Select>
+              <Input
+                type="text"
+                value={modalData?.payment_status || "Pending"}
+                onChange={(e) =>
+                  setModalData((prev) => ({
+                    ...prev,
+                    payment_status: e.target.value,
+                  }))
+                }
+                disabled={user?.role === 'User' || !isEditMode}
+              />
               <Input
                 type="date"
                 value={modalData?.end_date || ""}

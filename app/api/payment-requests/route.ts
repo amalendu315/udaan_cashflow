@@ -40,7 +40,9 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
           pr.remarks, 
           pr.attachment_1, 
           pr.attachment_2, 
-          pr.attachment_3, 
+          pr.attachment_3,
+          pr.attachment_4,
+          pr.payment_method, 
           pr.status, 
           cu.username AS created_by_name, 
           uu.username AS updated_by_name, 
@@ -82,6 +84,8 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
           pr.attachment_1, 
           pr.attachment_2, 
           pr.attachment_3, 
+          pr.attachment_4,
+          pr.payment_method, 
           pr.status, 
           cu.username AS created_by_name, 
           uu.username AS updated_by_name, 
@@ -126,6 +130,8 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
           pr.attachment_1, 
           pr.attachment_2, 
           pr.attachment_3, 
+          pr.attachment_4,
+          pr.payment_method, 
           pr.status, 
           cu.username AS created_by_name, 
           uu.username AS updated_by_name, 
@@ -351,7 +357,7 @@ VALUES (
 SELECT id, due_date FROM @InsertedValues;
 `;
 
-     const result = await transaction
+     await transaction
        .request()
        .input("hotel_id", payload.hotel_id)
        .input("date", payload.date)
@@ -370,34 +376,7 @@ SELECT id, due_date FROM @InsertedValues;
        .input("status", status)
        .query(insertPaymentRequestQuery);
 
-    //  const paymentRequestId = result.recordset[0].id;
-     const paymentDueDate = result.recordset[0].due_date;
-
-      // If status is "Transfer Completed", update the cashflow table
-      if (status === "Transfer Pending") {
-        const updateCashflowQuery = `
-          MERGE INTO cashflow AS target
-          USING (
-            SELECT @due_date AS date, SUM(amount) AS total_payments
-            FROM payment_requests
-            WHERE status = 'Transfer Pending' AND FORMAT(due_date, 'yyyy-MM-dd') = FORMAT(@due_date, 'yyyy-MM-dd')
-            GROUP BY due_date
-          ) AS source
-          ON target.date = source.date
-          WHEN MATCHED THEN 
-            UPDATE SET target.total_payments = source.total_payments
-          WHEN NOT MATCHED THEN
-            INSERT (date, projected_inflow, actual_inflow, total_payments, closing, created_at, updated_at)
-            VALUES (source.date, 0, 0, source.total_payments, 0, GETDATE(), GETDATE());
-        `;
-
-        await transaction
-          .request()
-          .input("due_date", paymentDueDate)
-          .query(updateCashflowQuery);
-      }
-
-      await transaction.commit();
+       await transaction.commit();
 
       // Log the action
       await logAction(

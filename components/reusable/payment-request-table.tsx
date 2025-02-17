@@ -237,9 +237,11 @@ import { useEffect, useState } from "react";
 import { Button } from "../ui/button";
 import { DataTable } from "../ui/data-table";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "../ui/dialog";
-import { FetchWrapper, formatCurrency } from "@/utils";
+import { formatCurrency } from "@/utils";
 import { formatReadableDate } from "@/lib/utils";
 import DateRangeFilter from "./date-range-filter";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../ui/select";
+import { Input } from "../ui/input";
 
 interface PaymentRequestTableProps {
   role: "System-Admin"|"Admin" | "Sub-Admin" | "User";
@@ -262,10 +264,12 @@ const PaymentRequestTable: React.FC<PaymentRequestTableProps> = ({
   const [remarks, setRemarks] = useState<string>("");
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [newStatus, setNewStatus] = useState<string>("");
+  const [attachment, setAttachment] = useState<File | null>(null);
+  const [paymentMethod, setPaymentMethod] = useState<string>("cash");
   // 🔹 Date Range Filter State
   const [startDate, setStartDate] = useState<string>("");
   const [endDate, setEndDate] = useState<string>("");
-  const fetchWrapper = new FetchWrapper(() => token);
+  // const fetchWrapper = new FetchWrapper(() => token);
 
   // Filter requests based on the `filter` and `localDueDateFilter` props
 useEffect(() => {
@@ -289,28 +293,50 @@ useEffect(() => {
 }, [filter, startDate, endDate, requests]);
 
 
-  const handleActionClick = (request: PaymentRequest, status: string) => {
-    setSelectedRequest(request);
-    setIsDialogOpen(true);
-    setRemarks("");
-    setNewStatus(status);
-  };
+ const handleActionClick = (request: PaymentRequest, status: string) => {
+   setSelectedRequest(request);
+   setIsDialogOpen(true);
+   setRemarks("");
+   setPaymentMethod("");
+   setAttachment(null);
+   setNewStatus(status);
+ };
+ const handleSubmit = async () => {
+   if (!selectedRequest) return;
 
-  const handleSubmit = async () => {
-    if (!selectedRequest) return;
+   const formData = new FormData();
+   formData.append("status", newStatus);
+   formData.append("payment_method", paymentMethod);
+   if (remarks && (role === "Admin" || role === "System-Admin")) {
+     formData.append("remarks", remarks);
+   }
+   if (attachment) {
+     formData.append("attachment", attachment);
+   }
 
-    try {
-      await fetchWrapper.post(`/payment-requests/${selectedRequest.id}`, {
-        status: newStatus,
-        remarks:
-          role === "Admin" || newStatus === "Transfer Completed" ? remarks : "",
-      });
-      fetchRequests();
-      setIsDialogOpen(false);
-    } catch (error) {
-      console.error("Error updating payment request:", error);
-    }
-  };
+   try {
+     const response = await fetch(
+       `/api/payment-requests/${selectedRequest.id}`,
+       {
+         method: "POST",
+         headers:{
+          Authorization: `Bearer ${token}`
+         },
+         body: formData, // ✅ NO NEED TO SET HEADERS (Browser auto-sets Content-Type)
+       }
+     );
+
+     const data = await response.json();
+     console.log("Response Data:", data);
+
+     if (!response.ok) throw new Error(data.message || "Request failed");
+
+     fetchRequests();
+     setIsDialogOpen(false);
+   } catch (error) {
+     console.error("Error updating payment request:", error);
+   }
+ };
 
   const columns: ColumnDef<PaymentRequest>[] = [
     {
@@ -356,6 +382,7 @@ useEffect(() => {
           { url: row.original.attachment_1, label: "Attachment 1" },
           { url: row.original.attachment_2, label: "Attachment 2" },
           { url: row.original.attachment_3, label: "Attachment 3" },
+          { url: row.original.attachment_4, label: "Attachment 4" },
         ].filter((att) => att.url); // Filter out null values
 
         return attachments.length > 0 ? (
@@ -491,6 +518,39 @@ useEffect(() => {
             <div className="space-y-4">
               {(role === "Admin" || newStatus === "Transfer Completed") && (
                 <div>
+                  <label className="block font-medium">Payment Method</label>
+                  <Select
+                    onValueChange={setPaymentMethod}
+                    value={paymentMethod}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select Payment Method" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="Cash">Cash</SelectItem>
+                      <SelectItem value="Bank Transfer">
+                        Bank Transfer
+                      </SelectItem>
+                    </SelectContent>
+                  </Select>
+
+                  {paymentMethod && (
+                    <div>
+                      <label className="block font-medium">
+                        Upload{" "}
+                        {paymentMethod === "Cash"
+                          ? "Bill"
+                          : "Bank Transfer Screenshot"}
+                      </label>
+                      <Input
+                        type="file"
+                        accept="image/*, .pdf"
+                        onChange={(e) =>
+                          setAttachment(e.target.files?.[0] || null)
+                        }
+                      />
+                    </div>
+                  )}
                   <label className="block font-medium mb-2">Remarks</label>
                   <textarea
                     className="w-full border px-3 py-2 rounded"

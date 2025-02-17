@@ -103,12 +103,12 @@
 
         if (!res.ok) throw new Error("Failed to update inflow");
 
-        await fetch(`/api/cashflow/closing`, {
-          method: "PUT",
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        });
+        // await fetch(`/api/cashflow/closing`, {
+        //   method: "PUT",
+        //   headers: {
+        //     Authorization: `Bearer ${token}`,
+        //   },
+        // });
 
         toast.success("Projected inflow updated successfully!");
         onSuccess();

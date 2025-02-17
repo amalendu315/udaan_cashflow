@@ -15,6 +15,7 @@ interface UpdateUserDialogProps {
 }
 
 const UpdateUserDialog = ({ userId, fetchUsers }: UpdateUserDialogProps) => {
+  console.log('userId', userId)
   return (
     <Dialog>
       <DialogTrigger asChild>

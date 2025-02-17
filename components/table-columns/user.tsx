@@ -9,12 +9,13 @@ import toast from "react-hot-toast";
 // Define the User interface
 export interface User {
   Id: number;
-  email: string;
-  hotel_id: number;
-  hotel_name: string;
-  role_id: string;
-  role: string;
   username: string;
+  email: string;
+  created_at: string; // or Date if you want to parse it
+  updated_at: string; // or Date
+  role: string;
+  role_id:string;
+  hotels: string | string[]; // Array of hotel names
 }
 
 // Define props that need to be passed into getUserColumns
@@ -77,8 +78,27 @@ export const getUserColumns = ({
       header: "Role",
     },
     {
-      accessorKey: "hotel",
-      header: "Hotel",
+      accessorKey: "hotels",
+      header: "Hotels",
+      cell: ({ row }) => {
+        const hotels = Array.isArray(row.original.hotels)
+          ? row.original.hotels
+          : typeof row.original.hotels === "string"
+          ? row.original.hotels.split(",") // ✅ Convert string to array if necessary
+          : [];
+
+        return hotels.length > 0 ? (
+          <div className="flex flex-col space-y-1">
+            {hotels.map((hotel, index) => (
+              <span key={index} className="block">
+                {hotel}
+              </span>
+            ))}
+          </div>
+        ) : (
+          <span className="text-gray-500">No Hotels Assigned</span>
+        );
+      },
     },
     {
       id: "actions",

@@ -3,7 +3,6 @@
 import Spinner from "@/components/reusable/loading";
 import { useAuth } from "@/contexts";
 import { FetchWrapper } from "@/utils";
-// Dependencies
 import { useState, useEffect } from "react";
 import toast from "react-hot-toast";
 
@@ -18,16 +17,15 @@ interface Role {
   role_name: string;
 }
 
-const CreateUserForm = ({fetchUsers}:{fetchUsers:()=>void}) => {
+const CreateUserForm = ({ fetchUsers }: { fetchUsers: () => void }) => {
   const { token } = useAuth(); // Auth hook to get the token
   const [formData, setFormData] = useState({
     username: "",
     email: "",
     password: "",
     role_id: "",
-    hotel_id: "",
+    hotels: [] as number[], // ✅ Stores multiple selected hotel IDs
   });
-  // const [message, setMessage] = useState("");
   const [hotels, setHotels] = useState<Hotel[]>([]);
   const [roles, setRoles] = useState<Role[]>([]);
   const [isLoading, setIsLoading] = useState(false);
@@ -36,16 +34,12 @@ const CreateUserForm = ({fetchUsers}:{fetchUsers:()=>void}) => {
     if (!token) return;
 
     const fetchInitialData = async () => {
-        const getToken = () => (token);
-      const fetchWrapper = new FetchWrapper(getToken); // Initialize dynamically
+      const getToken = () => token;
+      const fetchWrapper = new FetchWrapper(getToken);
       try {
         const [hotelsData, rolesData] = await Promise.all([
-          fetchWrapper.get<Hotel[]>("/hotels", {
-            includeAuth: true,
-          }),
-          fetchWrapper.get<Role[]>("/roles", {
-            includeAuth: true,
-          }),
+          fetchWrapper.get<Hotel[]>("/hotels", { includeAuth: true }),
+          fetchWrapper.get<Role[]>("/roles", { includeAuth: true }),
         ]);
         setHotels(hotelsData);
         setRoles(rolesData);
@@ -60,37 +54,40 @@ const CreateUserForm = ({fetchUsers}:{fetchUsers:()=>void}) => {
   const handleChange = (
     e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>
   ) => {
-    setFormData({ ...formData, [e.target.name]: e.target.value });
+    const { name, value } = e.target;
+    setFormData((prev) => ({ ...prev, [name]: value }));
+  };
+
+  // ✅ Handle Multiple Hotel Selection
+  const handleHotelChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    const selectedOptions = Array.from(e.target.selectedOptions).map((opt) =>
+      Number(opt.value)
+    );
+    setFormData((prev) => ({ ...prev, hotels: selectedOptions }));
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     setIsLoading(true);
     e.preventDefault();
-    // setMessage("");
 
     if (!token) {
-      toast.error("Authorization is missing!")
-      // setMessage("Authorization token is missing.");
+      toast.error("Authorization is missing!");
       return;
     }
 
-    const fetchWrapper = new FetchWrapper(() => token); // Initialize dynamically
+    const fetchWrapper = new FetchWrapper(() => token);
     try {
-      await fetchWrapper.post("/users", formData,{
-        includeAuth:true
-      });
-      // setMessage("User created successfully!");
+      await fetchWrapper.post("/users", formData, { includeAuth: true });
       toast.success("User created successfully");
       setFormData({
         username: "",
         email: "",
         password: "",
         role_id: "",
-        hotel_id: "",
+        hotels: [],
       });
       fetchUsers();
     } catch (error) {
-      // setMessage(error.message || "Failed to create user");
       toast.error((error as Error).message || "Failed to create user");
     } finally {
       setIsLoading(false);
@@ -99,15 +96,6 @@ const CreateUserForm = ({fetchUsers}:{fetchUsers:()=>void}) => {
 
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
-      {/* {message && (
-        <p
-          className={`text-${
-            message.includes("successfully") ? "green" : "red"
-          }-500`}
-        >
-          {message}
-        </p>
-      )} */}
       <div>
         <label className="block font-medium">Username</label>
         <input
@@ -161,23 +149,24 @@ const CreateUserForm = ({fetchUsers}:{fetchUsers:()=>void}) => {
         </select>
       </div>
       <div>
-        <label className="block font-medium">Hotel</label>
+        <label className="block font-medium">Hotels</label>
         <select
-          name="hotel_id"
-          value={formData.hotel_id}
-          onChange={handleChange}
+          name="hotels"
+          value={formData.hotels.map(String)} // Convert to string for select value
+          onChange={handleHotelChange}
+          multiple // ✅ Allow multiple selections
           required
           className="w-full border px-3 py-2 rounded"
         >
-          <option value="" disabled>
-            Select Hotel
-          </option>
           {hotels.map((hotel) => (
             <option key={hotel.Id} value={hotel.Id}>
               {hotel.name}
             </option>
           ))}
         </select>
+        <p className="text-sm text-gray-600">
+          Hold Ctrl (Cmd on Mac) to select multiple hotels.
+        </p>
       </div>
       <button
         type="submit"

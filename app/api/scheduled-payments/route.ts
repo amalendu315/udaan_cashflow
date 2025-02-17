@@ -11,6 +11,7 @@ interface ScheduledPayment {
   total_amount: number;
   payment_term: "monthly" | "quarterly" | "half yearly" | "full payment";
   end_date: string;
+  payment_status:string;
 }
 
 // Utility function to calculate EMI based on the total months
@@ -77,9 +78,12 @@ export async function GET() {
         FORMAT(sp.date, 'yyyy-MM-dd') AS date,  -- Convert to YYYY-MM-DD
         l.name AS ledger_name,
         h.name AS hotel_name,
+        sp.ledger_id,
+        sp.hotel_id,
         sp.total_amount,
         sp.EMI,
         sp.payment_term,
+        sp.payment_status,
         FORMAT(sp.end_date, 'yyyy-MM-dd') AS end_date  -- Convert to YYYY-MM-DD
       FROM 
         scheduled_payments sp
@@ -136,8 +140,8 @@ export async function POST(req: Request) {
     console.log("Final EMI Value:", emi);
 
     const query = `
-      INSERT INTO scheduled_payments (date, ledger_id, hotel_id, total_amount, EMI, payment_term, end_date)
-      VALUES (@date, @ledger_id, @hotel_id, @total_amount, @emi, @payment_term, @end_date);
+      INSERT INTO scheduled_payments (date, ledger_id, hotel_id, total_amount, EMI, payment_term, payment_status, end_date)
+      VALUES (@date, @ledger_id, @hotel_id, @total_amount, @emi, @payment_term, @payment_status, @end_date);
     `;
 
     await pool
@@ -149,6 +153,7 @@ export async function POST(req: Request) {
       .input("emi", sql.Decimal(18, 2), emi)
       .input("payment_term", sql.NVarChar, payload.payment_term)
       .input("end_date", sql.Date, payload.end_date)
+      .input("payment_status", sql.NVarChar, payload.payment_status)
       .query(query);
 
     return NextResponse.json(
@@ -191,6 +196,7 @@ export async function PUT(req: Request) {
           total_amount = @total_amount,
           EMI = @emi,
           payment_term = @payment_term,
+          payment_status = @payment_status,
           end_date = @end_date,
           updated_at = GETDATE()
       WHERE id = @id;
@@ -205,6 +211,7 @@ export async function PUT(req: Request) {
       .input("total_amount", sql.Decimal(18, 2), payload.total_amount)
       .input("emi", sql.Decimal(18, 2), emi)
       .input("payment_term", sql.NVarChar, payload.payment_term)
+      .input("payment_status", sql.NVarChar, payload.payment_status)
       .input("end_date", sql.Date, payload.end_date)
       .query(query);
 

@@ -17,7 +17,7 @@ export type CreateUserRequest = {
   password: string;
   email: string;
   role_id: number;
-  hotel_id: number;
+  hotels: number[]; // ✅ Expecting an array of hotel IDs
 };
 
 export type CreateVendorRequest = {
@@ -37,13 +37,15 @@ export type UserPayload = {
 
 export interface User {
   Id: number;
-  email: string;
-  hotel_id: number;
-  hotel_name: string;
-  role_id: string;
-  role: string;
   username: string;
+  email: string;
+  created_at: string;
+  updated_at: string;
+  role: string;
+  role_id:string;
+  hotels: string | string[]; // ✅ Explicitly allow both string and array types
 }
+
 
 export interface AuthContextProps {
   token: string | null;
@@ -78,7 +80,9 @@ export interface PaymentRequest {
   attachment_1:string;
   attachment_2:string;
   attachment_3:string;
+  attachment_4:string;
   status:string;
+  payment_method:string;
   created_by_name:string;
   updated_by_name:string;
   approval_by:string;

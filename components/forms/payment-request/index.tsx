@@ -170,14 +170,6 @@ const PaymentRequestPage = () => {
            attachment3: null,
          });
          fetchRequests();
-         if(user?.role === "Admin" || user?.role === "System-Admin") {
-          await fetch(`/api/cashflow/closing`, {
-            method: "PUT",
-            headers: {
-              Authorization: `Bearer ${token}`,
-            },
-          });
-         }
          // Redirect user based on role
          const redirectRoutes: Record<string, string> = {
            Admin: "/admin/payment-requests",

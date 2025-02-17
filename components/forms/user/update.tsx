@@ -2,7 +2,7 @@
 
 import Spinner from "@/components/reusable/loading";
 import { useAuth, useHotels } from "@/contexts";
-import { User } from "@/types";
+// import { User } from "@/types";
 import { FetchWrapper } from "@/utils";
 import { useState, useEffect, useMemo } from "react";
 import toast from "react-hot-toast";
@@ -14,10 +14,23 @@ interface Role {
 
 interface UpdateUserFormProps {
   userId: number; // ID of the user to update
-  fetchUsers:()=>void;
+  fetchUsers: () => void;
 }
 
-const UpdateUserForm: React.FC<UpdateUserFormProps> = ({ userId, fetchUsers }) => {
+interface User {
+    Id: number,
+    username: string,
+    email: string,
+    role_id:number,
+    role: string,
+    hotel_ids:string | string[],
+    hotel_names: string | string[];
+}
+
+const UpdateUserForm: React.FC<UpdateUserFormProps> = ({
+  userId,
+  fetchUsers,
+}) => {
   const { token } = useAuth();
   const { hotels } = useHotels();
 
@@ -26,7 +39,7 @@ const UpdateUserForm: React.FC<UpdateUserFormProps> = ({ userId, fetchUsers }) =
     username: "",
     email: "",
     role_id: "",
-    hotel_id: "",
+    hotels: [] as number[], // ✅ Supports multiple hotels
   });
   const [isLoading, setIsLoading] = useState(false);
 
@@ -49,11 +62,16 @@ const UpdateUserForm: React.FC<UpdateUserFormProps> = ({ userId, fetchUsers }) =
         ]);
 
         setRoles(rolesData as Role[]);
+
         setFormData({
           username: user.username,
           email: user.email,
           role_id: user.role_id?.toString(),
-          hotel_id: user.hotel_id?.toString(),
+          hotels: Array.isArray(user.hotel_ids) // ✅ Ensure it's an array
+            ? user.hotel_ids.map(Number) // Convert IDs to numbers
+            : typeof user.hotel_ids === "string"
+            ? user.hotel_ids.split(",").map(Number) // Split if it's a string
+            : [],
         });
       } catch (error) {
         toast.error("Error fetching user details or roles");
@@ -72,23 +90,37 @@ const UpdateUserForm: React.FC<UpdateUserFormProps> = ({ userId, fetchUsers }) =
     setFormData({ ...formData, [e.target.name]: e.target.value });
   };
 
+  // ✅ Handle Multiple Hotel Selection
+  const handleHotelChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    const selectedOptions = Array.from(e.target.selectedOptions).map((opt) =>
+      Number(opt.value)
+    );
+    setFormData((prev) => ({ ...prev, hotels: selectedOptions }));
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
 
+    console.log('hotels', formData.hotels)
+
     try {
       // Update user API call
-      await fetchWrapper.put(`/users/${userId}`, {
-        username: formData.username,
-        email: formData.email,
-        role_id: parseInt(formData.role_id, 10),
-        hotel_id: parseInt(formData.hotel_id, 10),
-      },{
-        includeAuth:true
-      });
+      await fetchWrapper.put(
+        `/users/${userId}`,
+        {
+          username: formData.username,
+          email: formData.email,
+          role_id: parseInt(formData.role_id, 10),
+          hotels: formData.hotels, // ✅ Send as an array
+        },
+        {
+          includeAuth: true,
+        }
+      );
 
       toast.success("User updated successfully!");
-      fetchUsers(); // Refresh the users list in context
+      fetchUsers(); // Refresh the users list
     } catch (error) {
       toast.error("Error updating user. Please try again.");
       console.error("Error updating user:", error);
@@ -98,9 +130,7 @@ const UpdateUserForm: React.FC<UpdateUserFormProps> = ({ userId, fetchUsers }) =
   };
 
   if (isLoading) {
-    return (
-      <Spinner size={40} className="mx-auto d-block" />
-    );
+    return <Spinner size={40} className="mx-auto d-block" />;
   }
 
   return (
@@ -156,26 +186,27 @@ const UpdateUserForm: React.FC<UpdateUserFormProps> = ({ userId, fetchUsers }) =
         </select>
       </div>
       <div>
-        <label htmlFor="hotel_id" className="block font-medium mb-1">
-          Hotel
+        <label htmlFor="hotels" className="block font-medium mb-1">
+          Hotels
         </label>
         <select
-          name="hotel_id"
-          id="hotel_id"
-          value={formData.hotel_id}
-          onChange={handleChange}
+          name="hotels"
+          id="hotels"
+          value={formData.hotels.map(String)} // Convert to string for select value
+          onChange={handleHotelChange}
+          multiple // ✅ Allows multiple selections
           required
           className="w-full border px-3 py-2 rounded focus:ring focus:ring-blue-300"
         >
-          <option value="" disabled>
-            Select Hotel
-          </option>
           {hotels.map((hotel) => (
             <option key={hotel.Id} value={hotel.Id}>
               {hotel.name}
             </option>
           ))}
         </select>
+        <p className="text-sm text-gray-600">
+          Hold Ctrl (Cmd on Mac) to select multiple hotels.
+        </p>
       </div>
       <button
         type="submit"

@@ -12,12 +12,13 @@ import {jwtDecode} from "jwt-decode";
 
 interface User {
   Id: number;
-  email: string;
-  hotel_id: number;
-  hotel_name: string;
-  role_id: string;
-  role: string;
   username: string;
+  email: string;
+  created_at: string; // or Date if you want to parse it
+  updated_at: string; // or Date
+  role: string;
+  role_id:string;
+  hotels: string | string[]; // Array of hotel names
 }
 
 interface DecodedToken {

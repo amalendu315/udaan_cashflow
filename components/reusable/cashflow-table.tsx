@@ -2,15 +2,21 @@
 
 // Dependencies
 import { useState, useEffect, useCallback } from "react";
-import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { DataTable } from "@/components/ui/data-table";
 import { useAuth } from "@/contexts";
-import { ColumnDef } from "@tanstack/react-table";
+import { ColumnDef, Row } from "@tanstack/react-table";
 import { formatCurrency } from "@/utils";
 import toast from "react-hot-toast";
-import { useRouter } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "../ui/tooltip";
+import { CheckSquare, Edit, Trash2 } from "lucide-react";
 
 interface Cashflow {
   date: string;
@@ -43,6 +49,7 @@ interface MonthlyPayment {
   ledger_id: number;
   day_of_month: number;
   payment_date: string;
+  payment_status: string;
   created_by: string;
   created_at: string;
 }
@@ -55,6 +62,7 @@ interface ScheduledPayment {
   EMI: number;
   ledger_id: number;
   payment_date: string;
+  payment_status: string;
   created_by: string;
   created_at: string;
 }
@@ -106,13 +114,14 @@ function formatReadableDate(dateString: string): string {
   return `${daySuffix(day)} ${month} ${year}`;
 }
 
-
 const CashflowTable: React.FC<CashflowTableProps> = ({
   readOnly,
   itemsPerPage = 10, // Default to 10 if not provided
 }) => {
+  const pathname = usePathname();
   const router = useRouter();
   const { token, user } = useAuth();
+  const role = user?.role;
   const [cashflowData, setCashflowData] = useState<Cashflow[]>([]);
   const [filteredData, setFilteredData] = useState<Cashflow[]>([]);
   const [selectedActualInflow, setSelectedActualInflow] =
@@ -147,7 +156,6 @@ const CashflowTable: React.FC<CashflowTableProps> = ({
       //  const filteredByMonth = data.filter((row: Cashflow) =>
       //    isCurrentMonth(row.date, currentMonth, currentYear)
       //  );
-
       setCashflowData(data);
       setFilteredData(data);
     } catch (error) {
@@ -181,15 +189,15 @@ const CashflowTable: React.FC<CashflowTableProps> = ({
 
       if (!res.ok) {
         toast.error("Failed to update actual inflow");
-        throw new Error("Failed to update actual inflow")
-      };
+        throw new Error("Failed to update actual inflow");
+      }
 
-      await fetch(`/api/cashflow/closing`, {
-        method: "PUT",
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      })
+      // await fetch(`/api/cashflow/closing`, {
+      //   method: "PUT",
+      //   headers: {
+      //     Authorization: `Bearer ${token}`,
+      //   },
+      // })
       toast.success("Actual inflow updated successfully");
 
       setIsActualInflowDialogOpen(false);
@@ -212,6 +220,49 @@ const CashflowTable: React.FC<CashflowTableProps> = ({
       setFilteredData(cashflowData);
     }
   };
+
+  const isBeforeAllowedEditDate = (dateString: string) => {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0); // Normalize to start of day
+
+    const rowDate = new Date(dateString);
+    rowDate.setHours(0, 0, 0, 0); // Normalize to start of day
+
+    const diffInTime = today.getTime() - rowDate.getTime();
+    const diffInDays = diffInTime / (1000 * 3600 * 24);
+
+    return diffInDays > 2; // 🚨 If more than 2 days old, return true (disable editing)
+  };
+
+  const handlePRActionClick = () => {
+    if(user?.role === "System-Admin"){
+      router.push('/system-admin/payment-requests')
+    } else if (user?.role === "Admin"){
+      router.push("/admin/payment-requests");
+    } else {
+      alert('Your are not authorized!')
+    }
+  };
+
+   const handleMPActionClick = () => {
+     if (user?.role === "System-Admin") {
+       router.push("/system-admin/monthly-payments");
+     } else if (user?.role === "Admin") {
+       router.push("/admin/monthly-payments");
+     } else {
+       alert("Your are not authorized!");
+     }
+   };
+
+   const handleSPActionClick = () => {
+     if (user?.role === "System-Admin") {
+       router.push("/system-admin/scheduled-payments");
+     } else if (user?.role === "Admin") {
+       router.push("/admin/scheduled-payments");
+     } else {
+       alert("Your are not authorized!");
+     }
+   };
 
   // Handle pagination
   const currentPageData = filteredData.slice(
@@ -270,11 +321,94 @@ const CashflowTable: React.FC<CashflowTableProps> = ({
         </div>
       ),
     },
-    { accessorKey: "approval_by", header: "Approved By" },
-    { accessorKey: "remarks", header: "Remarks" },
-    { accessorKey: "status", header: "Status" },
-    { accessorKey: "created_by", header: "Created By" },
-    { accessorKey: "created_at", header: "Created At" },
+    ...(pathname.includes("/cashflow")
+      ? []
+      : [
+          { accessorKey: "approval_by", header: "Approved By" },
+          { accessorKey: "remarks", header: "Remarks" },
+        ]),
+
+    {
+      accessorKey: "status",
+      header: "Status",
+      cell: ({ getValue }) => {
+        const status = getValue<string>();
+
+        const getStatusStyle = (status: string) => {
+          switch (status) {
+            case "Transfer Completed":
+              return "bg-green-500";
+            case "Rejected":
+              return "bg-red-500";
+            case "Transfer Pending":
+              return "bg-blue-500";
+            case "Pending":
+              return "bg-yellow-500";
+            default:
+              return "bg-gray-500";
+          }
+        };
+
+        return (
+          <span
+            className={`inline-block w-full px-4 py-1 rounded-full text-sm text-white ${getStatusStyle(
+              status
+            )}`}
+            style={{
+              whiteSpace: "nowrap",
+              overflow: "hidden",
+              textOverflow: "ellipsis",
+            }}
+            title={status}
+          >
+            {status}
+          </span>
+        );
+      },
+    },
+    ...(pathname.includes("/cashflow") &&
+    (role === "Admin" || role === "Sub-Admin" || role === "System-Admin")
+      ? [
+          {
+            id: "actions",
+            header: "Actions",
+            cell: ({ row }: { row: Row<PaymentRequest> }) => {
+              return(
+              <div className="flex space-x-2">
+                {row.original.status === "Pending" ? (
+                  <>
+                    <Button
+                      onClick={() =>
+                        handlePRActionClick()
+                      }
+                      className="bg-green-500 text-white"
+                    >
+                      Approve
+                    </Button>
+                    <Button
+                      onClick={() =>
+                        handlePRActionClick()
+                      }
+                      className="bg-red-500 text-white"
+                    >
+                      Reject
+                    </Button>
+                  </>
+                ) : row.original.status === "Transfer Pending" ? (
+                  <Button
+                    onClick={() =>
+                      handlePRActionClick()
+                    }
+                    className="bg-blue-500 text-white"
+                  >
+                    Mark as Done
+                  </Button>
+                ) : null}
+              </div>
+            )},
+          },
+        ]
+      : []),
   ];
 
   const monthlyPaymentColumns: ColumnDef<MonthlyPayment>[] = [
@@ -293,7 +427,7 @@ const CashflowTable: React.FC<CashflowTableProps> = ({
     { accessorKey: "day_of_month", header: "Day of Month" },
     {
       accessorKey: "payment_date",
-      header: "End Date",
+      header: "Payment Date",
       cell: ({ row }) => (
         <div className="flex space-x-2">
           {formatReadableDate(row?.original?.payment_date)}
@@ -301,11 +435,99 @@ const CashflowTable: React.FC<CashflowTableProps> = ({
       ),
     },
     {
-      accessorKey: "created_at",
-      header: "Created At",
-      cell: ({ row }) => (
-        <div className="flex space-x-2">
-          {formatReadableDate(row?.original?.created_at)}
+      accessorKey: "payment_status",
+      header: "Payment Status",
+      cell: ({ getValue }) => {
+        const status = getValue<string>();
+
+        const getStatusStyle = (status: string) => {
+          switch (status) {
+            case "Completed":
+              return "bg-green-500";
+            case "Pending":
+              return "bg-yellow-500";
+            default:
+              return "bg-gray-500";
+          }
+        };
+
+        return (
+          <span
+            className={`inline-block px-4 py-1 rounded-full text-sm text-white ${getStatusStyle(
+              status
+            )}`}
+            style={{
+              whiteSpace: "nowrap",
+              overflow: "hidden",
+              textOverflow: "ellipsis",
+            }}
+            title={status}
+          >
+            {status}
+          </span>
+        );
+      },
+    },
+    {
+      accessorKey: "actions",
+      header: "Actions",
+      cell: ({ row }: { row: Row<MonthlyPayment> }) => (
+        <div className="flex gap-2">
+          {row?.original?.payment_status === "Completed" && (
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger>
+                  <Button
+                    variant="default"
+                    size={"sm"}
+                    onClick={() => handleMPActionClick()}
+                    className="bg-blue-500"
+                  >
+                    <Edit className="h-5 w-5 object-contain" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>
+                  <p>Edit Payment</p>
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
+          )}
+          {row?.original?.payment_status === "Pending" && (
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger>
+                  <Button
+                    variant="default"
+                    size={"sm"}
+                    onClick={() => handleMPActionClick()}
+                    className="bg-green-500"
+                  >
+                    <CheckSquare className="h-5 w-5 object-contain" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>
+                  <p>Mark Payment Status as Completed</p>
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
+          )}
+          <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger>
+                <Button
+                  variant="destructive"
+                  size="sm"
+                  onClick={() => handleMPActionClick()}
+                  className="bg-red-500 text-white hover:bg-red-600"
+                >
+                  <Trash2 className="h-5 w-5 object-contain" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>
+                <p>Delete Payment</p>
+              </TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
         </div>
       ),
     },
@@ -339,7 +561,103 @@ const CashflowTable: React.FC<CashflowTableProps> = ({
         </div>
       ),
     },
-    { accessorKey: "created_at", header: "Created At" },
+    {
+      accessorKey: "payment_status",
+      header: "Payment Status",
+      cell: ({ getValue }) => {
+        const status = getValue<string>();
+
+        const getStatusStyle = (status: string) => {
+          switch (status) {
+            case "Completed":
+              return "bg-green-500";
+            case "Pending":
+              return "bg-yellow-500";
+            default:
+              return "bg-gray-500";
+          }
+        };
+
+        return (
+          <span
+            className={`inline-block px-4 py-1 rounded-full text-sm text-white ${getStatusStyle(
+              status
+            )}`}
+            style={{
+              whiteSpace: "nowrap",
+              overflow: "hidden",
+              textOverflow: "ellipsis",
+            }}
+            title={status}
+          >
+            {status}
+          </span>
+        );
+      },
+    },
+    {
+      accessorKey: "actions",
+      header: "Actions",
+      cell: ({ row }: { row: Row<ScheduledPayment> }) => (
+        <div className="flex gap-2">
+          {row?.original?.payment_status === "Completed" && (
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger>
+                  <Button
+                    variant="default"
+                    size={"sm"}
+                    onClick={() => handleSPActionClick()}
+                    className="bg-blue-500"
+                  >
+                    <Edit className="h-5 w-5 object-contain" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>
+                  <p>Edit Payment</p>
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
+          )}
+          {row?.original?.payment_status === "Pending" && (
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger>
+                  <Button
+                    variant="default"
+                    size={"sm"}
+                    onClick={() => handleSPActionClick()}
+                    className="bg-green-500"
+                  >
+                    <CheckSquare className="h-5 w-5 object-contain" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>
+                  <p>Mark Payment Status as Completed</p>
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
+          )}
+          <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger>
+                <Button
+                  variant="destructive"
+                  size="sm"
+                  onClick={() => handleSPActionClick()}
+                  className="bg-red-500 text-white hover:bg-red-600"
+                >
+                  <Trash2 className="h-5 w-5 object-contain" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>
+                <p>Delete Payment</p>
+              </TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
+        </div>
+      ),
+    },
   ];
 
   const payment_date =
@@ -382,51 +700,54 @@ const CashflowTable: React.FC<CashflowTableProps> = ({
         </thead>
         <tbody className="text-gray-700 text-sm divide-y divide-gray-200">
           {currentPageData.length > 0 ? (
-            currentPageData.map((row) => (
-              <tr key={row.date} className="hover:bg-gray-100">
-                <td className="py-3 px-6 text-left whitespace-nowrap">
-                  {formatReadableDate(row.date)}
-                </td>
-                <td className="py-3 px-6 text-right">
-                  <Button
-                    variant="secondary"
-                    onClick={() =>
-                      user?.role === "System-Admin"
-                        ? router.push(`/system-admin/projected-inflow`)
-                        : router.push(`/admin/projected-inflow`)
-                    }
-                    disabled={readOnly}
+            currentPageData.map((row) => {
+              const isDisabled = isBeforeAllowedEditDate(row?.date);
+              return (
+                <tr key={row.date} className="hover:bg-gray-100">
+                  <td className="py-3 px-6 text-left whitespace-nowrap">
+                    {formatReadableDate(row.date)}
+                  </td>
+                  <td className="py-3 px-6 text-right">
+                    <Button
+                      variant="secondary"
+                      onClick={() =>
+                        user?.role === "System-Admin"
+                          ? router.push(`/system-admin/projected-inflow`)
+                          : router.push(`/admin/projected-inflow`)
+                      }
+                      disabled={readOnly || isDisabled}
+                    >
+                      {formatCurrency(row.projected_inflow)}
+                    </Button>
+                  </td>
+                  <td className="py-3 px-6 text-right">
+                    <Button
+                      variant="secondary"
+                      onClick={() => handleEditActualInflow(row)}
+                      disabled={readOnly || isDisabled}
+                    >
+                      {formatCurrency(row.actual_inflow)}
+                    </Button>
+                  </td>
+                  <td className="py-3 px-6 text-right">
+                    <Button
+                      variant="secondary"
+                      onClick={() => fetchPaymentBreakdown(row.date)}
+                      disabled={readOnly || isDisabled}
+                    >
+                      {formatCurrency(row.total_payments)}
+                    </Button>
+                  </td>
+                  <td
+                    className={`py-3 px-6 text-right ${
+                      row.closing >= 0 ? "text-green-500" : "text-red-500"
+                    }`}
                   >
-                    {formatCurrency(row.projected_inflow)}
-                  </Button>
-                </td>
-                <td className="py-3 px-6 text-right">
-                  <Button
-                    variant="secondary"
-                    onClick={() => handleEditActualInflow(row)}
-                    disabled={readOnly}
-                  >
-                    {formatCurrency(row.actual_inflow)}
-                  </Button>
-                </td>
-                <td className="py-3 px-6 text-right">
-                  <Button
-                    variant="secondary"
-                    onClick={() => fetchPaymentBreakdown(row.date)}
-                    disabled={readOnly}
-                  >
-                    {formatCurrency(row.total_payments)}
-                  </Button>
-                </td>
-                <td
-                  className={`py-3 px-6 text-right ${
-                    row.closing >= 0 ? "text-green-500" : "text-red-500"
-                  }`}
-                >
-                  {formatCurrency(row.closing)}
-                </td>
-              </tr>
-            ))
+                    {formatCurrency(row.closing)}
+                  </td>
+                </tr>
+              );
+            })
           ) : (
             <tr>
               <td colSpan={5} className="text-center text-gray-500 py-3 px-6">
@@ -463,7 +784,7 @@ const CashflowTable: React.FC<CashflowTableProps> = ({
           open={isActualInflowDialogOpen}
           onOpenChange={setIsActualInflowDialogOpen}
         >
-          <DialogContent className="max-w-lg w-full">
+          <DialogContent className="max-w-lg w-full overflow-auto">
             <DialogTitle className="text-xl font-bold">
               Edit Actual Inflow
             </DialogTitle>
@@ -498,11 +819,11 @@ const CashflowTable: React.FC<CashflowTableProps> = ({
       {/* Payment Breakdown Dialog */}
       {isDialogOpen && dialogData && (
         <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-          <DialogContent className="max-w-6xl w-full max-h-[80vh] overflow-hidden">
+          <DialogContent className="max-w-6xl w-full max-h-[80vh] overflow-y-scroll">
             <DialogTitle className="text-xl font-bold">
               Payment Breakdown for {payment_date}
             </DialogTitle>
-            <div className="space-y-8">
+            <div className="space-y-8 scroll-auto">
               {dialogData.paymentRequests.length > 0 && (
                 <DataTable
                   columns={paymentRequestColumns}

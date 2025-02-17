@@ -2,7 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 
 import { connectDb } from "@/db/config";
 import { verifyAuth } from "@/middlewares";
-import { dbQuery, logAction } from "@/utils";
+import { dbQuery, logAction, uploadToS3 } from "@/utils";
+import sql from 'mssql';
 
 export async function GET(
   req: NextRequest,
@@ -241,10 +242,126 @@ export async function DELETE(
   }
 }
 
+// export async function POST(
+//   req: NextRequest,
+//   context: { params: Promise<{ id: string }> }
+// ) {
+//   const { isAuthorized, user } = await verifyAuth(req, [
+//     "Admin",
+//     "Sub-Admin",
+//     "System-Admin",
+//   ]);
+//   if (!isAuthorized) {
+//     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+//   }
+
+//   const action = "Update Payment Request Status";
+//   const { id } = await context.params;
+//   const requestId = parseInt(id, 10);
+
+//   if (isNaN(requestId)) {
+//     return NextResponse.json(
+//       { message: "Invalid Payment request id" },
+//       { status: 400 }
+//     );
+//   }
+
+//   const { status, remarks } = await req.json();
+//   const pool = await connectDb();
+
+//   try {
+//     const transaction = pool.transaction();
+//     await transaction.begin();
+//     const query = `SELECT due_date, status FROM payment_requests WHERE id = @id`;
+//     const result = await dbQuery(pool, query, { id: requestId });
+
+//     if (!result.recordsets.length) {
+//       return NextResponse.json(
+//         { message: "Payment Request not found" },
+//         { status: 404 }
+//       );
+//     }
+
+//     const prevStatus = result.recordset[0].status;
+//     const prevDueDate = result.recordset[0].due_date;
+
+//     const updateQuery = `
+//       UPDATE payment_requests
+//       SET status = @status, 
+//           remarks = @remarks, 
+//           updated_by = @updated_by, 
+//           updated_at = GETDATE()
+//       WHERE id = @id;
+//     `;
+
+//     const dbInput = {
+//       id: requestId,
+//       status,
+//       remarks,
+//       updated_by: user?.id,
+//     };
+
+//     const updateResult = await dbQuery(pool, updateQuery, dbInput);
+
+//     if (dbInput.status === "Transfer Completed") {
+//       const updateCashflowQuery = `
+//           MERGE INTO cashflow AS target
+//           USING (
+//             SELECT @due_date AS date, SUM(amount) AS total_payments
+//             FROM payment_requests
+//             WHERE status = 'Transfer Completed' AND FORMAT(due_date, 'yyyy-MM-dd') = FORMAT(@due_date, 'yyyy-MM-dd')
+//             GROUP BY due_date
+//           ) AS source
+//           ON target.date = source.date
+//           WHEN MATCHED THEN 
+//             UPDATE SET target.total_payments = source.total_payments
+//           WHEN NOT MATCHED THEN
+//             INSERT (date, projected_inflow, actual_inflow, total_payments, closing, created_at, updated_at)
+//             VALUES (source.date, 0, 0, source.total_payments, 0, GETDATE(), GETDATE());
+//         `;
+
+//       await transaction
+//         .request()
+//         .input("due_date", prevDueDate)
+//         .query(updateCashflowQuery);
+//     }
+
+//     await transaction.commit();
+
+//     if (!updateResult.rowsAffected[0]) {
+//       return NextResponse.json(
+//         { message: "Failed to update payment request status" },
+//         { status: 404 }
+//       );
+//     }
+
+//     await logAction(
+//       pool,
+//       user?.id || null,
+//       user?.role || null,
+//       "payment_requests",
+//       action,
+//       JSON.stringify({ id: requestId, oldStatus: prevStatus, status, remarks })
+//     );
+
+//     return NextResponse.json(
+//       { message: `Payment request status changed successfully.` },
+//       { status: 200 }
+//     );
+//   } catch (error) {
+//     console.error("Error processing request:", error);
+//     return NextResponse.json(
+//       { message: "Error processing request.", error: error },
+//       { status: 500 }
+//     );
+//   }
+// }
+
 export async function POST(
   req: NextRequest,
   context: { params: Promise<{ id: string }> }
 ) {
+  // Verify authentication
   const { isAuthorized, user } = await verifyAuth(req, [
     "Admin",
     "Sub-Admin",
@@ -254,25 +371,47 @@ export async function POST(
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const action = "Update Payment Request Status";
+ const contentType = req.headers.get("content-type") || "";
+
+ if (!contentType.includes("multipart/form-data")) {
+   return NextResponse.json(
+     { message: "Invalid Content-Type. Expected multipart/form-data." },
+     { status: 400 } // ✅ Use 400 Bad Request instead of 500
+   );
+ }
+
+
+  // Extract and validate payment request ID
   const { id } = await context.params;
   const requestId = parseInt(id, 10);
-
   if (isNaN(requestId)) {
     return NextResponse.json(
-      { message: "Invalid Payment request id" },
+      { message: "Invalid Payment Request ID" },
       { status: 400 }
     );
   }
 
-  const { status, remarks } = await req.json();
+  // Parse multipart form data
+ const formData = await req.formData();
+  const status = formData.get("status") as string;
+  const remarks = formData.get("remarks") as string;
+  const paymentMethod = formData.get("payment_method") as string; // Cash or Bank Transfer
+  const attachment = formData.get("attachment") as File | null; // Uploaded file
+
   const pool = await connectDb();
 
   try {
-    const query = `SELECT status FROM payment_requests WHERE id = @id`;
-    const result = await dbQuery(pool, query, { id: requestId });
+    const transaction = pool.transaction();
+    await transaction.begin();
 
-    if (!result.recordsets.length) {
+    // Retrieve current status of the payment request
+    const query = `SELECT due_date, status FROM payment_requests WHERE id = @id`;
+    const result = await transaction
+      .request()
+      .input("id", sql.Int, requestId)
+      .query(query);
+
+    if (!result.recordset.length) {
       return NextResponse.json(
         { message: "Payment Request not found" },
         { status: 404 }
@@ -281,49 +420,66 @@ export async function POST(
 
     const prevStatus = result.recordset[0].status;
 
+    // Handle File Upload if an attachment exists
+    let attachmentUrl = null;
+    if (attachment) {
+      attachmentUrl = await uploadToS3(
+        attachment,
+        `payment_proofs/${requestId}`
+      );
+    }
+    console.log('attachmentUrl', attachmentUrl)
+    // Update the payment request status, payment method, and file attachment
     const updateQuery = `
       UPDATE payment_requests
       SET status = @status, 
           remarks = @remarks, 
+          payment_method = @paymentMethod,
+          attachment_4 = @attachmentUrl, 
           updated_by = @updated_by, 
           updated_at = GETDATE()
       WHERE id = @id;
     `;
 
-    const dbInput = {
-      id: requestId,
-      status,
-      remarks,
-      updated_by: user?.id,
-    };
+    await transaction
+      .request()
+      .input("id", sql.Int, requestId)
+      .input("status", sql.VarChar, status)
+      .input("remarks", sql.VarChar, remarks || null)
+      .input("paymentMethod", sql.VarChar, paymentMethod)
+      .input("attachmentUrl", sql.VarChar, attachmentUrl || null)
+      .input("updated_by", sql.Int, user?.id)
+      .query(updateQuery);
 
-    const updateResult = await dbQuery(pool, updateQuery, dbInput);
+    await transaction.commit();
 
-    if (!updateResult.rowsAffected[0]) {
-      return NextResponse.json(
-        { message: "Failed to update payment request status" },
-        { status: 404 }
-      );
-    }
-
+    // Log the action
     await logAction(
       pool,
       user?.id || null,
       user?.role || null,
       "payment_requests",
-      action,
-      JSON.stringify({ id: requestId, oldStatus: prevStatus, status, remarks })
+      "Update Payment Request Status",
+      JSON.stringify({
+        id: requestId,
+        oldStatus: prevStatus,
+        newStatus: status,
+        paymentMethod,
+        remarks,
+        attachmentUrl,
+      })
     );
 
     return NextResponse.json(
-      { message: `Payment request status changed successfully.` },
+      { message: `Payment request status updated successfully.` },
       { status: 200 }
     );
   } catch (error) {
     console.error("Error processing request:", error);
     return NextResponse.json(
-      { message: "Error processing request.", error: error },
+      { message: "Error processing request.", error },
       { status: 500 }
     );
   }
 }
+

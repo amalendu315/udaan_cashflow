@@ -7,7 +7,7 @@ import { dbQuery, logAction } from "@/utils";
 
 export async function GET(
   req: NextRequest,
-  context: { params: Promise<{ id: string }> }
+  context: { params: { id: string } }
 ) {
   const { isAuthorized, message } = await verifyAuth(req, [
     "Admin",
@@ -17,34 +17,52 @@ export async function GET(
   if (!isAuthorized) {
     return NextResponse.json({ message }, { status: 403 });
   }
-  const { id } = await context.params;
-  const userId = parseInt(id, 10);
+
+  const userId = parseInt(context.params.id, 10);
   if (isNaN(userId)) {
     return NextResponse.json({ message: "Invalid user ID" }, { status: 400 });
   }
+
   const pool = await connectDb();
   try {
-    const query = `SELECT u.id, u.username, u.email, u.role_id, u.hotel_id, r.role_name, h.name
-         FROM users u
-         INNER JOIN roles r ON u.role_id = r.id
-         INNER JOIN hotels h ON u.hotel_id = h.id
-         WHERE u.id = @id`;
+    const query = `
+      SELECT 
+        u.id, u.username, u.email, u.role_id, r.role_name,
+        STRING_AGG(h.id, ',') AS hotel_ids, 
+        STRING_AGG(h.name, ', ') AS hotel_names
+      FROM users u
+      INNER JOIN roles r ON u.role_id = r.id
+      LEFT JOIN user_hotels uh ON u.id = uh.user_id
+      LEFT JOIN hotels h ON uh.hotel_id = h.id
+      WHERE u.id = @id
+      GROUP BY u.id, u.username, u.email, u.role_id, r.role_name
+    `;
+
     const result = await dbQuery(pool, query, { id: userId });
-    if (result.recordsets.length === 0) {
+
+    if (result.recordset.length === 0) {
       return NextResponse.json({ message: "User not found" }, { status: 404 });
     }
-    return NextResponse.json(result.recordset[0]);
-  } catch (error:unknown) {
+
+    const user = result.recordset[0];
+
+    return NextResponse.json({
+      ...user,
+      hotel_ids: user.hotel_ids ? user.hotel_ids.split(",").map(Number) : [],
+      hotel_names: user.hotel_names ? user.hotel_names.split(", ") : [],
+    });
+  } catch (error) {
     return NextResponse.json(
-      { message: "Error Fetching the User", error },
+      { message: "Error fetching user details", error },
       { status: 500 }
     );
   }
 }
 
+
 export async function PUT(
   req: NextRequest,
-  context: { params: Promise<{ id: string }> }
+  context: { params: { id: string } }
 ) {
   const { isAuthorized, message, user } = await verifyAuth(req, [
     "Admin",
@@ -53,92 +71,129 @@ export async function PUT(
   if (!isAuthorized) {
     return NextResponse.json({ message }, { status: 403 });
   }
-  const action = "Update User";
-  const { id } = await context.params;
-  const userId = parseInt(id, 10);
+
+  const userId = await parseInt(context.params.id, 10);
   if (isNaN(userId)) {
     return NextResponse.json({ message: "Invalid user ID" }, { status: 400 });
   }
-  const { username, email, role_id, hotel_id } = await req.json();
+
+  const { username, email, role_id, hotels } = await req.json();
+
+  console.log(username, email, userId, role_id, hotels);
+  
+
+  if (!Array.isArray(hotels) || hotels.length === 0) {
+    return NextResponse.json(
+      { message: "At least one hotel must be assigned." },
+      { status: 400 }
+    );
+  }
+
   const pool = await connectDb();
   try {
-    const query = `UPDATE users SET
-          username = @username,
-          email = @email,
-          role_id = @role_id,
-          hotel_id = @hotel_id,
-          updated_at = GETDATE()
-         WHERE id = @id`;
-    const result = await dbQuery(pool, query, {
+    // ✅ Update User Details
+    const updateUserQuery = `
+      UPDATE users SET
+        username = @username,
+        email = @email,
+        role_id = @role_id,
+        updated_at = GETDATE()
+      WHERE id = @id
+    `;
+    await dbQuery(pool, updateUserQuery, {
       id: userId,
-      username: username,
-      email: email,
-      role_id: role_id,
-      hotel_id: hotel_id,
+      username,
+      email,
+      role_id,
     });
-    if (!result.rowsAffected[0]) {
-      return NextResponse.json({ message: "User not found" }, { status: 404 });
+
+    // ✅ Remove Existing Hotel Assignments
+    await dbQuery(pool, `DELETE FROM user_hotels WHERE user_id = @id`, {
+      id: userId,
+    });
+
+    // ✅ Insert New Hotel Assignments
+    for (const hotelId of hotels) {
+      await dbQuery(
+        pool,
+        `INSERT INTO user_hotels (user_id, hotel_id) VALUES (@userId, @hotelId)`,
+        { userId, hotelId }
+      );
     }
+
     await logAction(
       pool,
       user?.id || null,
       user?.role || null,
       "users",
-      action,
+      "Update User",
       `Updated user with ID ${userId}`
     );
+
     return NextResponse.json(
       { message: "User updated successfully" },
       { status: 200 }
     );
-  } catch (error:unknown) {
+  } catch (error) {
     return NextResponse.json(
-      { message: "Error Updating the User", error },
+      { message: "Error updating user", error },
       { status: 500 }
     );
   }
 }
 
+
+
 export async function DELETE(
   req: NextRequest,
-  props: { params: Promise<{ id: string }> }
+  context: { params: { id: string } }
 ) {
   const { isAuthorized, user, message } = await verifyAuth(req, [
     "Admin",
     "System-Admin",
   ]);
   if (!isAuthorized) {
-    return NextResponse.json({ message: message }, { status: 403 });
+    return NextResponse.json({ message }, { status: 403 });
   }
-  const action = "Delete User";
-  const { id } = await props.params;
-  const userId = parseInt(id, 10);
+
+  const userId = parseInt(context.params.id, 10);
   if (isNaN(userId)) {
     return NextResponse.json({ message: "Invalid User ID" }, { status: 400 });
   }
+
   const pool = await connectDb();
   try {
-    const query = `DELETE FROM users where id = @id`;
-    const result = await dbQuery(pool, query, { id: userId });
+    // ✅ Remove user-hotel associations first
+    await dbQuery(pool, `DELETE FROM user_hotels WHERE user_id = @id`, {
+      id: userId,
+    });
+
+    // ✅ Delete user
+    const deleteUserQuery = `DELETE FROM users WHERE id = @id`;
+    const result = await dbQuery(pool, deleteUserQuery, { id: userId });
+
     if (!result.rowsAffected[0]) {
       return NextResponse.json({ message: "User not found" }, { status: 404 });
     }
+
     await logAction(
       pool,
       user?.id || null,
       user?.role || null,
       "users",
-      action,
+      "Delete User",
       `Deleted user with ID ${userId}`
     );
+
     return NextResponse.json(
       { message: "User deleted successfully" },
       { status: 200 }
     );
-  } catch (error:unknown) {
+  } catch (error) {
     return NextResponse.json(
-      { message: "Error Deleting the User", error },
+      { message: "Error deleting user", error },
       { status: 500 }
     );
   }
 }
+

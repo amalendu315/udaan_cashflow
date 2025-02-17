@@ -56,22 +56,23 @@ export async function GET(req: NextRequest) {
     const monthlyPayments = await pool.request().input("date", sql.Date, date)
       .query(`
         SELECT 
-          mp.id,
-          h.name AS hotel_name,
-          mp.amount,
-          mp.day_of_month,
-          FORMAT(@date, 'yyyy-MM-dd') AS payment_date,
-          mp.ledger_id,
-          l.name AS ledger_name,
-          FORMAT(mp.created_at, 'yyyy-MM-dd HH:mm:ss') AS created_at
-        FROM 
-          monthly_payments mp
-        INNER JOIN 
-          hotels h ON mp.hotel_id = h.id
-        LEFT JOIN 
-          monthly_payment_ledgers l ON mp.ledger_id = l.id
-        WHERE 
-          mp.day_of_month = DAY(@date);
+  mp.id,
+  h.name AS hotel_name,
+  mp.amount,
+  mp.payment_status,
+  mp.day_of_month,
+  FORMAT(DATEFROMPARTS(YEAR(@date), MONTH(@date), mp.day_of_month), 'yyyy-MM-dd') AS payment_date,
+  mp.ledger_id,
+  l.name AS ledger_name,
+  FORMAT(mp.created_at, 'yyyy-MM-dd HH:mm:ss') AS created_at
+FROM 
+  monthly_payments mp
+INNER JOIN 
+  hotels h ON mp.hotel_id = h.id
+LEFT JOIN 
+  monthly_payment_ledgers l ON mp.ledger_id = l.id
+WHERE 
+  DATEFROMPARTS(YEAR(@date), MONTH(@date), mp.day_of_month) = @date;
       `);
 
     // Fetch detailed scheduled payments with ledger details
@@ -82,6 +83,7 @@ export async function GET(req: NextRequest) {
           h.name AS hotel_name,
           sp.total_amount AS amount,
           sp.payment_term,
+          sp.payment_status,
           sp.EMI,
           sp.ledger_id,
           l.name AS ledger_name,

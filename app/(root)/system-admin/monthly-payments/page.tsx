@@ -23,9 +23,9 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { DataTable } from "@/components/ui/data-table";
 import { useAuth, useHotels } from "@/contexts";
-import { Edit, Trash2 } from "lucide-react";
-import { formatReadableDate } from "@/lib/utils";
+import { CheckSquare, Edit, Trash2 } from "lucide-react";
 import { formatCurrency } from "@/utils";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 
 interface MonthlyPayment {
   id?: number;
@@ -35,7 +35,7 @@ interface MonthlyPayment {
   hotel_id: number;
   hotel_name?: string;
   amount: number;
-  end_date: string;
+ payment_status:string;
 }
 
 interface Ledger {
@@ -44,7 +44,7 @@ interface Ledger {
 }
 
 const MonthlyPaymentsTable = () => {
-  const { token } = useAuth();
+  const { token, user } = useAuth();
   const { hotels } = useHotels();
   const [payments, setPayments] = useState<MonthlyPayment[]>([]);
   const [filters, setFilters] = useState<Record<string, number | null>>({});
@@ -66,8 +66,7 @@ const MonthlyPaymentsTable = () => {
          const paymentsData = await res.json();
          setPayments(
            paymentsData.map((payment: MonthlyPayment) => ({
-             ...payment,
-             end_date: new Date(payment.end_date).toISOString().split("T")[0],
+             ...payment
            }))
          );
        } catch (error) {
@@ -165,12 +164,6 @@ const MonthlyPaymentsTable = () => {
 
       setModalData(null);
       setIsDialogOpen(false);
-      await fetch("/api/cashflow/closing", {
-        method: "PUT",
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      });
       fetchPayments();
     } catch (error) {
       console.error("Error saving payment:", error);
@@ -191,13 +184,6 @@ const MonthlyPaymentsTable = () => {
 
       if (!res.ok) throw new Error("Failed to delete payment");
 
-      await fetch("/api/cashflow/closing", {
-        method: "PUT",
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      });
-
       setPayments((prev) => prev.filter((p) => p.id !== id));
     } catch (error) {
       console.error("Error deleting payment:", error);
@@ -210,7 +196,7 @@ const MonthlyPaymentsTable = () => {
       ledger_id: 0,
       hotel_id: 0,
       amount: 0,
-      end_date: "",
+      payment_status: "Pending",
     });
     setIsEditMode(false);
     setIsDialogOpen(true);
@@ -225,10 +211,49 @@ const MonthlyPaymentsTable = () => {
       hotel_id: payment.hotel_id,
       hotel_name: payment.hotel_name,
       amount: payment.amount,
-      end_date: payment.end_date,
+      payment_status: payment.payment_status,
     });
     setIsEditMode(true);
     setIsDialogOpen(true);
+  };
+
+  const handlePaymentStatusButtonClick = async (
+    payment: MonthlyPayment,
+    newStatus: string
+  ) => {
+    if (!payment.id) {
+      console.error("Error: Payment ID is missing!");
+      return;
+    }
+    try {
+      const res = await fetch("/api/monthly-payments", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" ,
+          Authorization: `Bearer ${token}`
+         },
+        body: JSON.stringify({
+          id: payment.id,
+          day_of_month: payment.day_of_month,
+          ledger_id: payment.ledger_id,
+          hotel_id: payment.hotel_id,
+          amount: payment.amount,
+          payment_status: newStatus,
+        }),
+      });
+
+      if (!res.ok) throw new Error("Failed to save scheduled payment");
+
+      const updatedPayment = await res.json();
+
+      // ✅ Update state properly
+      setPayments((prev) =>
+        prev.map((p) => (p.id === updatedPayment.id ? updatedPayment : p))
+      );
+
+      fetchPayments(); // ✅ Refresh payments after update
+    } catch (error) {
+      console.error("Error updating scheduled payment:", error);
+    }
   };
 
   const columns: ColumnDef<MonthlyPayment>[] = [
@@ -245,35 +270,101 @@ const MonthlyPaymentsTable = () => {
       cell: ({ getValue }) => `${formatCurrency(getValue<number>())}`,
     },
     {
-      accessorKey: "end_date",
-      header: "End Date",
-      cell: ({ row }) => (
-        <div className="flex space-x-2">
-          {formatReadableDate(row?.original?.end_date)}
-        </div>
-      ),
+      accessorKey: "payment_status",
+      header: "Payment Status",
+      cell: ({ getValue }) => {
+        const status = getValue<string>();
+
+        const getStatusStyle = (status: string) => {
+          switch (status) {
+            case "Completed":
+              return "bg-green-500";
+            case "Pending":
+              return "bg-yellow-500";
+            default:
+              return "bg-gray-500";
+          }
+        };
+
+        return (
+          <span
+            className={`inline-block px-4 py-1 rounded-full text-sm text-white ${getStatusStyle(
+              status
+            )}`}
+            style={{
+              whiteSpace: "nowrap",
+              overflow: "hidden",
+              textOverflow: "ellipsis",
+            }}
+            title={status}
+          >
+            {status}
+          </span>
+        );
+      },
     },
     {
       accessorKey: "actions",
       header: "Actions",
-      cell: ({ row }: {row:Row<MonthlyPayment>}) => (
+      cell: ({ row }: { row: Row<MonthlyPayment> }) => (
         <div className="flex gap-2">
-          <Button
-            variant="default"
-            size={"sm"}
-            onClick={() => openEditModal(row.original)}
-            className="bg-blue-500"
-          >
-            <Edit className="h-5 w-5 object-contain" />
-          </Button>
-          <Button
-            variant="destructive"
-            size="sm"
-            onClick={() => handleDelete(row?.original?.id as number)}
-            className="bg-red-500 text-white hover:bg-red-600"
-          >
-            <Trash2 className="h-5 w-5 object-contain" />
-          </Button>
+          {row?.original?.payment_status === "Completed" && (
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger>
+                  <Button
+                    variant="default"
+                    size={"sm"}
+                    onClick={() => openEditModal(row.original)}
+                    className="bg-blue-500"
+                  >
+                    <Edit className="h-5 w-5 object-contain" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>
+                  <p>Edit Payment</p>
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
+          )}
+          {row?.original?.payment_status === "Pending" && (
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger>
+                  <Button
+                    variant="default"
+                    size={"sm"}
+                    onClick={() =>
+                      handlePaymentStatusButtonClick(row.original, "Completed")
+                    }
+                    className="bg-green-500"
+                  >
+                    <CheckSquare className="h-5 w-5 object-contain" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>
+                  <p>Mark Payment Status as Completed</p>
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
+          )}
+          <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger>
+                <Button
+                  variant="destructive"
+                  size="sm"
+                  onClick={() => handleDelete(row?.original?.id as number)}
+                  className="bg-red-500 text-white hover:bg-red-600"
+                >
+                  <Trash2 className="h-5 w-5 object-contain" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>
+                <p>Delete Payment</p>
+              </TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
         </div>
       ),
     },
@@ -416,17 +507,18 @@ const MonthlyPaymentsTable = () => {
               </div>
               <div>
                 <label className="block text-sm font-medium mb-1">
-                  End Date
+                  Payment Status
                 </label>
                 <Input
-                  type="date"
-                  value={modalData?.end_date || ""}
+                  type="text"
+                  value={modalData?.payment_status || "Pending"}
                   onChange={(e) =>
                     setModalData((prev) => ({
                       ...prev,
-                      end_date: e.target.value,
+                      payment_status: e.target.value,
                     }))
                   }
+                  disabled={user?.role === "User" || !isEditMode}
                 />
               </div>
             </div>

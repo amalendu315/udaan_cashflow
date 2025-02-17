@@ -21,7 +21,7 @@ export async function GET() {
         mp.hotel_id,
         h.name AS hotel_name,
         mp.amount,
-        CONVERT(VARCHAR, mp.end_date, 23) AS end_date -- Format as YYYY-MM-DD
+        mp.payment_status
       FROM 
         monthly_payments mp
       JOIN 
@@ -54,13 +54,13 @@ export async function POST(req: NextRequest) {
     const action = 'Create Monthly Payment';
 
   const pool = await connectDb();
-  const { day_of_month, ledger_id, hotel_id, amount, end_date } =
+  const { day_of_month, ledger_id, hotel_id, amount, payment_status } =
     await req.json();
 
   try {
     const query = `
-      INSERT INTO monthly_payments (day_of_month, ledger_id, hotel_id, amount, end_date)
-      VALUES (@day_of_month, @ledger_id, @hotel_id, @amount, @end_date);
+      INSERT INTO monthly_payments (day_of_month, ledger_id, hotel_id, amount, payment_status)
+      VALUES (@day_of_month, @ledger_id, @hotel_id, @amount, @payment_status);
     `;
 
     await pool
@@ -69,7 +69,7 @@ export async function POST(req: NextRequest) {
       .input("ledger_id", sql.Int, ledger_id)
       .input("hotel_id", sql.Int, hotel_id)
       .input("amount", sql.Decimal(18, 2), amount)
-      .input("end_date", sql.Date, end_date)
+      .input("payment_status", sql.NVarChar, payment_status)
         .query(query);
 
       await logAction(
@@ -78,7 +78,7 @@ export async function POST(req: NextRequest) {
           user?.role || null,
           "monthly_payments",
           action,
-          `Created monthly payments with end date :- ${end_date}`
+          `Created monthly payments for hotel id :- ${hotel_id}`
       )
 
     return NextResponse.json(
@@ -152,7 +152,7 @@ export async function PUT(req: NextRequest) {
   }
 
   const pool = await connectDb();
-  const { id, day_of_month, ledger_id, hotel_id, amount, end_date } =
+  const { id, day_of_month, ledger_id, hotel_id, amount, payment_status } =
     await req.json();
 
   if (!id) {
@@ -170,7 +170,7 @@ export async function PUT(req: NextRequest) {
         ledger_id = @ledger_id,
         hotel_id = @hotel_id,
         amount = @amount,
-        end_date = @end_date,
+        payment_status = @payment_status,
         updated_at = GETDATE()
       WHERE id = @id;
     `;
@@ -182,7 +182,7 @@ export async function PUT(req: NextRequest) {
       .input("ledger_id", sql.Int, ledger_id)
       .input("hotel_id", sql.Int, hotel_id)
       .input("amount", sql.Decimal(18, 2), amount)
-      .input("end_date", sql.Date, end_date)
+      .input("payment_status", sql.NVarChar, payment_status)
       .query(query);
 
     return NextResponse.json(
