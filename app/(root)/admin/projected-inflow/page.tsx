@@ -88,6 +88,19 @@ const ProjectedInflowPage = () => {
     }, 0);
   };
 
+   const isBeforeAllowedEditDate = (dateString: string) => {
+     const today = new Date();
+     today.setHours(0, 0, 0, 0); // Normalize to start of day
+
+     const rowDate = new Date(dateString);
+     rowDate.setHours(0, 0, 0, 0); // Normalize to start of day
+
+     const diffInTime = today.getTime() - rowDate.getTime();
+     const diffInDays = diffInTime / (1000 * 3600 * 24);
+
+     return diffInDays > 2; // 🚨 If more than 2 days old, return true (disable editing)
+   };
+
   // Handle loading inflows for the current month on page load
   useEffect(() => {
     const currentDate = new Date();
@@ -181,7 +194,8 @@ const ProjectedInflowPage = () => {
                   <TableCell className="px-6 py-4">
                     <button
                       onClick={() => setSelectedInflow(row)}
-                      className="text-blue-500 underline"
+                      className="text-blue-500 underline h-5 w-5"
+                      disabled={isBeforeAllowedEditDate(row?.date)}
                     >
                       <Edit2Icon className="size-6 rounded-sm" />
                     </button>
