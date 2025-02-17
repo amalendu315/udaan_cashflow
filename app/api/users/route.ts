@@ -173,7 +173,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
 
     // ✅ Step 2: Insert multiple rows into `user_hotels`
 
-    const hotelParams: Record<string, any> = { user_id: userId };
+    const hotelParams: Record<string, unknown> = { user_id: userId };
     hotels.forEach((hotelId, index) => {
       hotelParams[`hotel_id${index}`] = hotelId;
     });

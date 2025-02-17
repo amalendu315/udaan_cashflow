@@ -36,25 +36,25 @@ const cashflowResult = await pool.request().query(cashflowQuery);
     const cashflowData: CashflowEntry[] = cashflowResult.recordset;
 
     // ✅ Step 3: Fetch Payments Data (Ensuring All Dates Exist)
-   const paymentsQuery = `
-      SELECT 
-        FORMAT(cf.date, 'yyyy-MM-dd') AS date,
-        COALESCE(SUM(CASE WHEN pr.status = 'Transfer Completed' THEN pr.amount ELSE 0 END), 0) AS payment_requests,
-        COALESCE(SUM(sp.EMI), 0) AS scheduled_payments,
-        COALESCE(SUM(mp.amount), 0) AS monthly_payments
-      FROM v_cashflow_with_payments cf  -- Ensure all dates exist
-      LEFT JOIN payment_requests pr 
-        ON FORMAT(pr.due_date, 'yyyy-MM-dd') = FORMAT(cf.date, 'yyyy-MM-dd')
-      LEFT JOIN scheduled_payments sp 
-        ON FORMAT(sp.date, 'yyyy-MM-dd') = FORMAT(cf.date, 'yyyy-MM-dd')
-      LEFT JOIN monthly_payments mp 
-        ON DATEFROMPARTS(YEAR(cf.date), MONTH(cf.date), mp.day_of_month) = cf.date  -- ✅ FIXED JOIN CONDITION
-      GROUP BY cf.date
-      ORDER BY cf.date;
-    `;
+  //  const paymentsQuery = `
+  //     SELECT 
+  //       FORMAT(cf.date, 'yyyy-MM-dd') AS date,
+  //       COALESCE(SUM(CASE WHEN pr.status = 'Transfer Completed' THEN pr.amount ELSE 0 END), 0) AS payment_requests,
+  //       COALESCE(SUM(sp.EMI), 0) AS scheduled_payments,
+  //       COALESCE(SUM(mp.amount), 0) AS monthly_payments
+  //     FROM v_cashflow_with_payments cf  -- Ensure all dates exist
+  //     LEFT JOIN payment_requests pr 
+  //       ON FORMAT(pr.due_date, 'yyyy-MM-dd') = FORMAT(cf.date, 'yyyy-MM-dd')
+  //     LEFT JOIN scheduled_payments sp 
+  //       ON FORMAT(sp.date, 'yyyy-MM-dd') = FORMAT(cf.date, 'yyyy-MM-dd')
+  //     LEFT JOIN monthly_payments mp 
+  //       ON DATEFROMPARTS(YEAR(cf.date), MONTH(cf.date), mp.day_of_month) = cf.date  -- ✅ FIXED JOIN CONDITION
+  //     GROUP BY cf.date
+  //     ORDER BY cf.date;
+  //   `;
 
-    const paymentsResult = await pool.request().query(paymentsQuery);
-    const paymentsData = paymentsResult.recordset;
+    // const paymentsResult = await pool.request().query(paymentsQuery);
+    // const paymentsData = paymentsResult.recordset;
 
     // ✅ Step 4: Fetch Projected Inflow Breakdown
     const breakdownQuery = `

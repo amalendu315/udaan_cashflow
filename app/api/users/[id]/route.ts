@@ -7,7 +7,7 @@ import { dbQuery, logAction } from "@/utils";
 
 export async function GET(
   req: NextRequest,
-  context: { params: { id: string } }
+  context: { params: Promise<{ id: string }> }
 ) {
   const { isAuthorized, message } = await verifyAuth(req, [
     "Admin",
@@ -18,7 +18,8 @@ export async function GET(
     return NextResponse.json({ message }, { status: 403 });
   }
 
-  const userId = parseInt(context.params.id, 10);
+  const { id } = await context.params;
+  const userId = parseInt(id, 10);
   if (isNaN(userId)) {
     return NextResponse.json({ message: "Invalid user ID" }, { status: 400 });
   }
@@ -60,10 +61,7 @@ export async function GET(
 }
 
 
-export async function PUT(
-  req: NextRequest,
-  context: { params: { id: string } }
-) {
+export async function PUT(req: NextRequest, context: { params: Promise<{ id: string }> } ) {
   const { isAuthorized, message, user } = await verifyAuth(req, [
     "Admin",
     "System-Admin",
@@ -71,8 +69,8 @@ export async function PUT(
   if (!isAuthorized) {
     return NextResponse.json({ message }, { status: 403 });
   }
-
-  const userId = await parseInt(context.params.id, 10);
+const { id } = await(context.params);
+  const userId = parseInt(id, 10);
   if (isNaN(userId)) {
     return NextResponse.json({ message: "Invalid user ID" }, { status: 400 });
   }
@@ -80,7 +78,6 @@ export async function PUT(
   const { username, email, role_id, hotels } = await req.json();
 
   console.log(username, email, userId, role_id, hotels);
-  
 
   if (!Array.isArray(hotels) || hotels.length === 0) {
     return NextResponse.json(
@@ -146,7 +143,7 @@ export async function PUT(
 
 export async function DELETE(
   req: NextRequest,
-  context: { params: { id: string } }
+  context: { params: Promise<{ id: string }> }
 ) {
   const { isAuthorized, user, message } = await verifyAuth(req, [
     "Admin",
@@ -156,7 +153,8 @@ export async function DELETE(
     return NextResponse.json({ message }, { status: 403 });
   }
 
-  const userId = parseInt(context.params.id, 10);
+  const { id } = await context.params;
+  const userId = parseInt(id, 10);
   if (isNaN(userId)) {
     return NextResponse.json({ message: "Invalid User ID" }, { status: 400 });
   }
