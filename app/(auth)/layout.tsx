@@ -10,6 +10,7 @@ import { RolesProvider } from "@/contexts/role-context";
 import { LedgersProvider } from "@/contexts/ledger-context";
 import { MonthlyPaymentLedgersProvider } from "@/contexts/mp-ledger-context";
 import { PaymentGroupsProvider } from "@/contexts/payment-group-context";
+import { ReportsProvider } from "@/contexts/report-context";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -47,8 +48,10 @@ export default function AuthLayout({
                         <HotelsProvider>
                           <PRProvider>
                             <PIProvider>
-                              {children}
-                              <Toaster position="top-right" />
+                              <ReportsProvider>
+                                {children}
+                                <Toaster position="top-right" />
+                              </ReportsProvider>
                             </PIProvider>
                           </PRProvider>
                         </HotelsProvider>

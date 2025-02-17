@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { connectDb } from "@/db/config";
 import { verifyAuth } from "@/middlewares";
-// import sql from "mssql";
 
 export async function GET(req: NextRequest) {
   const { isAuthorized, message } = await verifyAuth(req, [
@@ -18,12 +17,14 @@ export async function GET(req: NextRequest) {
     const query = `
       SELECT 
         FORMAT(c.date, 'yyyy-MM-dd') AS date,
-        SUM(c.projected_inflow) AS projected_inflow,
-        SUM(ai.amount) AS actual_inflow,
-        SUM(c.total_payments) AS payments,
-        SUM(c.closing) AS closing
+        COALESCE(SUM(c.projected_inflow), 0) AS projected_inflow,
+        COALESCE(SUM(ai.amount), 0) AS actual_inflow,
+        COALESCE(SUM(p.total_payments), 0) AS payments,
+        COALESCE(SUM(c.closing), 0) AS closing
       FROM cashflow c
       LEFT JOIN actual_inflow ai ON c.actual_inflow_id = ai.id
+      LEFT JOIN v_cashflow_with_payments p ON c.date = p.date
+      WHERE c.date IS NOT NULL
       GROUP BY FORMAT(c.date, 'yyyy-MM-dd')
       ORDER BY date ASC;
     `;
