@@ -212,8 +212,8 @@ const getFilteredPayments = (hotelName: string) => {
       ledger_id: 0,
       hotel_id: 0,
       total_amount: 0,
-      payment_term: "Full Payment",
-      payment_status:'Pending',
+      payment_term: "full payment",
+      payment_status: "Pending",
       EMI: 0,
       end_date: "",
     });
@@ -540,7 +540,7 @@ const getFilteredPayments = (hotelName: string) => {
                       total_amount: newTotalAmount,
                       EMI: calculateEMI(
                         newTotalAmount,
-                        modalData?.payment_term || "Full Payment"
+                        modalData?.payment_term || "full payment"
                       ),
                     };
                   })
@@ -553,7 +553,7 @@ const getFilteredPayments = (hotelName: string) => {
                     payment_term: value,
                   }))
                 }
-                value={modalData?.payment_term || ""}
+                value={modalData?.payment_term || "full payment"}
               >
                 <SelectTrigger>
                   <SelectValue placeholder="Select Payment Term" />
@@ -565,17 +565,24 @@ const getFilteredPayments = (hotelName: string) => {
                   <SelectItem value="full payment">Full Payment</SelectItem>
                 </SelectContent>
               </Select>
-              <Input
-                type="text"
-                value={modalData?.payment_status || "Pending"}
-                onChange={(e) =>
+              <Select
+                onValueChange={(value) =>
                   setModalData((prev) => ({
                     ...prev,
-                    payment_status: e.target.value,
+                    payment_status: value,
                   }))
                 }
+                value={modalData?.payment_status || "Pending"}
                 disabled={user?.role === "User" || !isEditMode}
-              />
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Select Payment Status" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="Pending">Pending</SelectItem>
+                  <SelectItem value="Completed">Completed</SelectItem>
+                </SelectContent>
+              </Select>
               <Input
                 type="date"
                 value={modalData?.end_date || ""}

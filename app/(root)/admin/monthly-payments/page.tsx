@@ -499,17 +499,24 @@ const MonthlyPaymentsTable = () => {
                 <label className="block text-sm font-medium mb-1">
                   Payment Status
                 </label>
-                <Input
-                  type="text"
-                  value={modalData?.payment_status || "Pending"}
-                  onChange={(e) =>
+                <Select
+                  onValueChange={(value) =>
                     setModalData((prev) => ({
                       ...prev,
-                      payment_status: e.target.value,
+                      payment_status: value,
                     }))
                   }
+                  value={modalData?.payment_status || "Pending"}
                   disabled={user?.role === "User" || !isEditMode}
-                />
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select Payment Status" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="Pending">Pending</SelectItem>
+                    <SelectItem value="Completed">Completed</SelectItem>
+                  </SelectContent>
+                </Select>
               </div>
             </div>
             <DialogFooter>
