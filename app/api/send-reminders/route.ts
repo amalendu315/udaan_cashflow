@@ -12,7 +12,7 @@ const transporter = nodemailer.createTransport({
   },
 });
 
-export async function GET(req: NextRequest) {
+export async function GET() {
   const pool = await connectDb();
 
   try {
