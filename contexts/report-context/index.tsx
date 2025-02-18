@@ -8,6 +8,7 @@ interface ReportData {
   bankBalance: number;
   openingBalance: number;
   totalCashInflow: number;
+  otherPayments:number;
   totalExpenses: number;
   netCashInHand: number;
   inflows: { ledger_name: string; total_amount: number }[];

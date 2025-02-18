@@ -295,6 +295,27 @@ useEffect(() => {
             </tr>
           )}
           <tr>
+            <td
+              style={{
+                border: "1px solid #000",
+                padding: "10px",
+                textAlign: "left",
+              }}
+            >
+              Other Payments (Scheduled & Monthly)
+            </td>
+            <td
+              //   className="right"
+              style={{
+                border: "1px solid #000",
+                padding: "10px",
+                textAlign: "left",
+              }}
+            >
+              {reportData.otherPayments.toFixed(2)}
+            </td>
+          </tr>
+          <tr>
             <th
               style={{
                 border: "1px solid #000",

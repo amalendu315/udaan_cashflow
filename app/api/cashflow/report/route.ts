@@ -224,6 +224,7 @@ export async function POST(req: NextRequest) {
         bankBalance,
         openingBalance,
         totalCashInflow,
+        otherPayments,
         totalExpenses,
         netCashInHand,
         inflows,
