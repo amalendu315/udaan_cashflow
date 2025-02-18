@@ -1,6 +1,11 @@
 import cron from "node-cron";
 import fetch from "node-fetch";
 
+interface CronResponse {
+  message:string;
+  status:number;
+}
+
 const startCronJobs = () => {
   console.log("🔄 Payment Reminder Cron Job Initialized...");
 
@@ -12,10 +17,10 @@ const startCronJobs = () => {
         `${process.env.BASE_URL}/api/send-reminders`
       );
       console.log('response', response)
-      const data:any = await response.json();
-      console.log("✅ Reminder Job Status:", data.message);
+      const data = await response.json();
+      console.log("✅ Reminder Job Status:", (data as CronResponse)?.message);
     } catch (error) {
-      console.error("❌ Reminder job failed:", error);
+      console.error("❌ Reminder job failed:", (error as Error)?.message);
     }
   });
 };
