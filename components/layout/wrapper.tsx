@@ -3,7 +3,6 @@
 import { useState } from "react";
 import Sidebar from "./sidebar";
 import Navbar from "./navbar";
-import Footer from "./footer";
 
 const SidebarLayout = ({ children }: { children: React.ReactNode }) => {
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
@@ -27,9 +26,6 @@ const SidebarLayout = ({ children }: { children: React.ReactNode }) => {
           <main className="flex-1 sm:p-2 overflow-y-auto">{children}</main>
         </div>
       </div>
-
-      {/* Footer */}
-      <Footer />
     </div>
   );
 };

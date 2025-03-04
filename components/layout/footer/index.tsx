@@ -1,22 +1,11 @@
 "use client";
 
-import { useState, useEffect } from "react";
 
 const Footer = () => {
-  const [isVisible, setIsVisible] = useState(false);
-
-  useEffect(() => {
-    // Show the footer with a delay
-    setTimeout(() => {
-      setIsVisible(true);
-    }, 200);
-  }, []);
 
   return (
     <footer
-      className={`sticky w-full bg-gray-200 text-gray-900 py-6 px-4 transition-all duration-500 ${
-        isVisible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-4"
-      }`}
+      className={`sticky w-full bg-gray-200 text-gray-900 py-6 px-4 transition-all duration-500 ease-in-out`}
     >
       <div className="max-w-7xl mx-auto flex flex-col md:flex-row items-center justify-between">
         {/* Left Side */}

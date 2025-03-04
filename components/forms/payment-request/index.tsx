@@ -4,7 +4,7 @@
 import { useState, useEffect } from "react";
 
 // Local Imports
-import { useAuth, useHotels, useRequests } from "@/contexts";
+import { useAuth, useRequests } from "@/contexts";
 import toast from "react-hot-toast";
 
 // Type Definitions
@@ -19,6 +19,7 @@ interface Approver {
 interface Subadmin {
   id: number;
   name: string;
+  hotels: Hotel[];
   approvers: Approver[];
 }
 
@@ -38,10 +39,13 @@ interface PaymentRequestForm {
   attachment3: File | null;
 }
 
+interface Hotel {
+  id:number;
+  name: string;
+}
 
 
 const PaymentRequestPage = () => {
-    const { hotels } = useHotels();
     const { token, user } = useAuth();
     const { fetchRequests } = useRequests();
      const [formData, setFormData] = useState<PaymentRequestForm>({
@@ -60,7 +64,7 @@ const PaymentRequestPage = () => {
        attachment3: null,
      });
 
-     const [subadmins, setSubadmins] = useState<Subadmin>({ id: 0, name: "", approvers: [] });
+     const [subadmins, setSubadmins] = useState<Subadmin>({ id: 0, name: "",hotels:[], approvers: [] });
      const [departments, setDepartments] = useState<Option[]>([]);
      const [paymentGroups, setPaymentGroups] = useState<Option[]>([]);
      const [ledgers, setLedgers] = useState<Option[]>([]);
@@ -94,10 +98,10 @@ const PaymentRequestPage = () => {
                headers: { Authorization: `Bearer ${token}` },
              }).then((res) => res.json()), // ✅ Fetch users
            ]);
-           console.log('userRes', usersRes)
            const approversList : Subadmin = {
              id: usersRes.id as number,
              name: usersRes.username as string,
+             hotels: usersRes.hotels as Hotel[],
              approvers: usersRes.approvers as Approver[],
            };
            console.log('approversList', approversList)
@@ -227,8 +231,8 @@ const PaymentRequestPage = () => {
               <option value="" disabled>
                 Select Hotel
               </option>
-              {hotels.map((hotel) => (
-                <option key={hotel.Id} value={hotel.Id}>
+              {subadmins.hotels.map((hotel) => (
+                <option key={hotel.id} value={hotel.id}>
                   {hotel.name}
                 </option>
               ))}

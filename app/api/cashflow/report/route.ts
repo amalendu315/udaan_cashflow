@@ -164,14 +164,17 @@ export async function POST(req: NextRequest) {
 
     const inflows = inflowResult.recordset;
 
-
     // 🟢 Get Cash Out-Flow (Include all Payment Groups, even if amount is 0)
     const expensesQuery = `
-      SELECT pg.name AS payment_group, COALESCE(SUM(pr.amount), 0) AS total_amount
-      FROM payment_groups pg
-      LEFT JOIN payment_requests pr ON pg.id = pr.payment_group_id
-      AND pr.due_date BETWEEN @startDate AND @endDate
-      GROUP BY pg.name
+      SELECT 
+  pg.name AS payment_group, 
+  COALESCE(SUM(pr.amount), 0) AS total_amount
+FROM payment_groups pg
+LEFT JOIN payment_requests pr 
+  ON pg.id = pr.payment_group_id
+  AND pr.due_date BETWEEN @startDate AND @endDate
+  AND pr.status <> 'Rejected'  -- ✅ Exclude rejected payment requests
+GROUP BY pg.name;
     `;
     const expensesResult = await pool
       .request()

@@ -17,6 +17,7 @@ import toast from "react-hot-toast";
 import { usePathname, useRouter } from "next/navigation";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "../ui/tooltip";
 import { CheckSquare, Edit, Trash2 } from "lucide-react";
+import DateRangeFilter from "./date-range-filter";
 
 interface Cashflow {
   date: string;
@@ -134,7 +135,8 @@ const CashflowTable: React.FC<CashflowTableProps> = ({
 
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [dialogData, setDialogData] = useState<PaymentBreakdown | null>(null);
-  const [selectedDate, setSelectedDate] = useState<string>("");
+   const [, setStartDate] = useState<string>("");
+   const [, setEndDate] = useState<string>("");
 
   // Pagination states
   const [currentPage, setCurrentPage] = useState<number>(1);
@@ -159,11 +161,46 @@ const CashflowTable: React.FC<CashflowTableProps> = ({
       //    isCurrentMonth(row.date, currentMonth, currentYear)
       //  );
       setCashflowData(data);
-      setFilteredData(data);
+      setFilteredData(filterLast10Days(data)); // ✅ Apply default 10-day filter
     } catch (error) {
       console.error("Error fetching cashflow data:", error);
     }
   }, [token]);
+
+   const filterLast10Days = (data: Cashflow[]) => {
+     const today = new Date();
+     today.setHours(0, 0, 0, 0);
+
+     const start = new Date(today);
+     start.setDate(today.getDate() - 5);
+
+     const end = new Date(today);
+     end.setDate(today.getDate() + 4);
+
+     return data.filter((row) => {
+       const rowDate = new Date(row.date);
+       rowDate.setHours(0, 0, 0, 0);
+       return rowDate >= start && rowDate <= end;
+     });
+   };
+
+   /** Apply user-selected date range filter */
+   const filterByDateRange = (start: string, end: string) => {
+     if (!start || !end) {
+       setFilteredData(filterLast10Days(cashflowData));
+       return;
+     }
+
+     const startTimestamp = new Date(start).getTime();
+     const endTimestamp = new Date(end).getTime();
+
+     setFilteredData(
+       cashflowData.filter((row) => {
+         const rowDate = new Date(row.date).getTime();
+         return rowDate >= startTimestamp && rowDate <= endTimestamp;
+       })
+     );
+   };
 
   // Open Actual Inflow Edit Dialog
 const handleEditActualInflow = async (row: Cashflow) => {
@@ -227,20 +264,6 @@ const handleEditActualInflow = async (row: Cashflow) => {
     }
   };
 
-
-  // Filter data by selected date
-  const handleDateFilter = (date: string) => {
-    setSelectedDate(date);
-    if (date) {
-      const filtered = cashflowData.filter(
-        (row) => new Date(row.date).toISOString().split("T")[0] === date
-      );
-      setFilteredData(filtered);
-      setCurrentPage(1);
-    } else {
-      setFilteredData(cashflowData);
-    }
-  };
 
   const isBeforeAllowedEditDate = (dateString: string) => {
     const today = new Date();
@@ -313,9 +336,10 @@ const handleEditActualInflow = async (row: Cashflow) => {
     }
   };
 
-  useEffect(() => {
-    fetchCashflowData();
-  }, [fetchCashflowData]);
+   useEffect(() => {
+     fetchCashflowData();
+   }, [fetchCashflowData]);
+
 
   // Column Definitions
   const paymentRequestColumns: ColumnDef<PaymentRequest>[] = [
@@ -692,20 +716,13 @@ const handleEditActualInflow = async (row: Cashflow) => {
       {/* Date Filter */}
       <div className="flex justify-between items-center mb-4">
         <h2 className="text-sm font-semibold">Cashflow</h2>
-        <div className="flex items-center gap-4">
-          <Input
-            type="date"
-            value={selectedDate}
-            onChange={(e) => handleDateFilter(e.target.value)}
-            className="border rounded px-2 py-2"
-          />
-          <Button
-            onClick={() => handleDateFilter("")}
-            className="bg-gray-500 text-white px-2 py-2 rounded"
-          >
-            Clear Filter
-          </Button>
-        </div>
+        <DateRangeFilter
+          onFilterChange={(start, end) => {
+            setStartDate(start);
+            setEndDate(end);
+            filterByDateRange(start, end);
+          }}
+        />
       </div>
 
       {/* Cashflow Table */}

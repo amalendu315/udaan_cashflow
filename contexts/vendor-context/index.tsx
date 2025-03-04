@@ -47,7 +47,8 @@ export const VendorsProvider = ({ children }: { children: ReactNode }) => {
       const data = await fetchWrapper.get<Vendor[]>("/vendors", {
         includeAuth: true,
       });
-      setVendors(data);
+      const sortedVendors = data.sort((a, b) => a.name.localeCompare(b.name));
+      setVendors(sortedVendors);
     } catch (error) {
       console.error("Error fetching vendors:", (error as Error)?.message);
       toast.error("Failed to fetch vendors.");

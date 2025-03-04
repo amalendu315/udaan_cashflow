@@ -25,13 +25,6 @@ export const PIProvider = ({ children }: { children: ReactNode }) => {
   // Initialize FetchWrapper
   const fetchWrapper = new FetchWrapper(() => token);
 
-  const getCurrentMonth = () => {
-    const now = new Date();
-    return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(
-      2,
-      "0"
-    )}`;
-  };
 
   const fetchInflows = async () => {
     if (!token) {
@@ -39,10 +32,9 @@ export const PIProvider = ({ children }: { children: ReactNode }) => {
       return;
     }
 
-    const currentMonth = getCurrentMonth();
     try {
       const data = await fetchWrapper.get<ProjectedInflow[]>(
-        `/projected-inflow?month=${currentMonth}`,
+        `/projected-inflow`,
         {
           includeAuth: true,
         }

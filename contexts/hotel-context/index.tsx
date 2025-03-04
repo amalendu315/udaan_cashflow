@@ -38,7 +38,8 @@ export const HotelsProvider = ({ children }: { children: ReactNode }) => {
       const data = await fetchWrapper.get<Hotel[]>("/hotels", {
         includeAuth: true,
       });
-      setHotels(data);
+       const sortedHotels = data.sort((a, b) => a.name.localeCompare(b.name));
+      setHotels(sortedHotels);
     } catch (error) {
       console.error("Error fetching hotels:", error);
     }

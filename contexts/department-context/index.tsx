@@ -40,7 +40,8 @@ export const DepartmentsProvider = ({ children }: { children: ReactNode }) => {
       const data = await fetchWrapper.get<Department[]>("/departments", {
         includeAuth: true,
       });
-      setDepartments(data);
+      const sortedDepartments = data.sort((a, b) => a.name.localeCompare(b.name));
+      setDepartments(sortedDepartments);
     } catch (error) {
       console.error("Error fetching departments:", error);
     }

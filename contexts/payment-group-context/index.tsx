@@ -48,7 +48,8 @@ export const PaymentGroupsProvider = ({
       const data = await fetchWrapper.get<PaymentGroup[]>("/payment-groups", {
         includeAuth: true,
       });
-      setPaymentGroups(data);
+      const sortedPaymentGroups = data.sort((a, b) => a.name.localeCompare(b.name));
+      setPaymentGroups(sortedPaymentGroups);
     } catch (error) {
       console.error("Error fetching payment groups:", (error as Error).message);
     }

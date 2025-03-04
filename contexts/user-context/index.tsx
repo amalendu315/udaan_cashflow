@@ -40,7 +40,8 @@ export const UsersProvider = ({ children }: { children: ReactNode }) => {
       const data = await fetchWrapper.get<User[]>("/users", {
         includeAuth: true,
       });
-      setUsers(data);
+      const sortedUsers = data.sort((a, b) => a.username.localeCompare(b.username));
+      setUsers(sortedUsers);
     } catch (error) {
       console.error("Error fetching users:", error);
     }

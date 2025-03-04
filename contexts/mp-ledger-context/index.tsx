@@ -45,7 +45,8 @@ export const MonthlyPaymentLedgersProvider = ({
       const data = await fetchWrapper.get<Ledger[]>("/mp-ledgers", {
         includeAuth: true,
       });
-      setLedgers(data);
+      const sortedLedgers = data.sort((a, b) => a.name.localeCompare(b.name));
+      setLedgers(sortedLedgers);
     } catch (error) {
       console.error("Error fetching ledgers:", error);
     }

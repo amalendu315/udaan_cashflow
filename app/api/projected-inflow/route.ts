@@ -26,14 +26,6 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
     return NextResponse.json({ message }, { status: 403 });
   }
 
-  const month = req.nextUrl.searchParams.get("month");
-  if (!month) {
-    return NextResponse.json(
-      { message: "Month parameter is required." },
-      { status: 400 }
-    );
-  }
-
   const pool = await connectDb();
 
   try {
@@ -41,6 +33,7 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
     const ledgerNamesResult = await pool.query(`SELECT id, name FROM ledgers`);
     const ledgerNames: LedgerRow[] = ledgerNamesResult.recordset;
 
+    // Fetch ALL inflows (no month filtering)
     const query = `
       SELECT 
         pi.id AS inflow_id, 
@@ -56,13 +49,11 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
       ON 
         pil.projected_inflow_id = pi.id
         AND pil.ledger_id = l.id
-      WHERE 
-        FORMAT(pi.date, 'yyyy-MM') = @month
       ORDER BY 
         pi.date, l.id;
     `;
 
-    const result = await pool.request().input("month", month).query(query);
+    const result = await pool.request().query(query);
 
     const inflowData: InflowRow[] = [];
     result.recordset.forEach((row) => {
@@ -74,13 +65,12 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
         existingRow = {
           id: row.inflow_id,
           date: row.date,
-          ...Object.fromEntries(ledgerNames.map((ledger) => [ledger.name, 0])), // Initialize ledgers with 0
+          ...Object.fromEntries(ledgerNames.map((ledger) => [ledger.name, 0])),
         } as InflowRow;
 
         inflowData.push(existingRow);
       }
 
-      // Ensure the ledger name exists in the row
       if (typeof row.ledger_name === "string") {
         existingRow[row.ledger_name] = row.amount;
       }
@@ -95,6 +85,7 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
     );
   }
 }
+
 
 export async function POST(req: NextRequest): Promise<NextResponse> {
   const { isAuthorized, message } = await verifyAuth(req, [

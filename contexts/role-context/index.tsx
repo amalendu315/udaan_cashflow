@@ -39,7 +39,8 @@ export const RolesProvider = ({ children }: { children: ReactNode }) => {
       const data = await fetchWrapper.get<Role[]>("/roles", {
         includeAuth: true,
       });
-      setRoles(data);
+      const sortedRoles = data.sort((a, b) => a.role_name.localeCompare(b.role_name));
+      setRoles(sortedRoles);
     } catch (error) {
       console.error("Error fetching roles:", error);
     }

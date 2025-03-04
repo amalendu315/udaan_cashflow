@@ -18,6 +18,7 @@ import { FetchWrapper, formatCurrency } from "@/utils";
 import toast from "react-hot-toast";
 import { formatReadableDate } from "@/lib/utils";
 import { ProjectedInflow } from "@/types";
+import DateRangeFilter from "@/components/reusable/date-range-filter";
 
 const ProjectedInflowPage = () => {
   const { token } = useAuth();
@@ -29,56 +30,83 @@ const ProjectedInflowPage = () => {
   const [selectedInflow, setSelectedInflow] = useState<ProjectedInflow | null>(
     null
   );
-  const [month, setMonth] = useState<string>("");
-  const [filterDate, setFilterDate] = useState<string>("");
+  const [, setStartDate] = useState<string>("");
+  const [, setEndDate] = useState<string>("");
+  const filterLast10Days = (inflows: ProjectedInflow[]) => {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
 
+    const start = new Date(today);
+    start.setDate(today.getDate() - 5); // 5 days before today
+
+    const end = new Date(today);
+    end.setDate(today.getDate() + 4); // 4 days after today
+
+    return inflows.filter((inflow) => {
+      const inflowDate = new Date(inflow.date).getTime();
+      return inflowDate >= start.getTime() && inflowDate <= end.getTime();
+    });
+  };
+
+  const filterByDateRange = (
+    inflows: ProjectedInflow[],
+    start: string,
+    end: string
+  ) => {
+    if (!start || !end) return filterLast10Days(inflows);
+
+    const startTimestamp = new Date(start).getTime();
+    const endTimestamp = new Date(end).getTime();
+
+    return inflows.filter((inflow) => {
+      const inflowDate = new Date(inflow.date).getTime();
+      return inflowDate >= startTimestamp && inflowDate <= endTimestamp;
+    });
+  };
   // Function to fetch inflows for a given month
-  const fetchInflowsForMonth = useCallback(
-    async (selectedMonth: string) => {
-      try {
-        const response = await fetchWrapper.get<ProjectedInflow[]>(
-          `/projected-inflow?month=${selectedMonth}`
-        );
+  const fetchInflowsForMonth = useCallback(async () => {
+    try {
+      const response = await fetchWrapper.get<ProjectedInflow[]>(
+        `/projected-inflow`
+      );
 
-        if (!response || response.length === 0) {
-          setInflows([]);
-          setFilteredInflows([]);
-          toast.error("No inflows available for the selected month.");
-          return false;
-        }
-
-        setInflows(response);
-        setFilteredInflows(response);
-
-        if (response.length > 0) {
-          const allColumns = Object.keys(response[0]);
-          const filteredColumns = allColumns.filter(
-            (key) => key !== "date" && key !== "id" && key !== "total_amount"
-          );
-
-          filteredColumns.sort();
-          setColumns(filteredColumns);
-        }
-
-        return true;
-      } catch (error) {
-        console.error("Error fetching inflows for the month:", error);
-        toast.error("Failed to fetch inflows for the selected month.");
+      if (!response || response.length === 0) {
+        setInflows([]);
+        setFilteredInflows([]);
+        toast.error("No inflows available");
         return false;
       }
-    },
-    [fetchWrapper]
-  );
+
+      setInflows(response);
+      setFilteredInflows(filterLast10Days(response));
+
+      if (response.length > 0) {
+        const allColumns = Object.keys(response[0]);
+        const filteredColumns = allColumns.filter(
+          (key) => key !== "date" && key !== "id" && key !== "total_amount"
+        );
+
+        filteredColumns.sort();
+        setColumns(filteredColumns);
+      }
+
+      return true;
+    } catch (error) {
+      console.error("Error fetching inflows for the month:", error);
+      toast.error("Failed to fetch inflows for the selected month.");
+      return false;
+    }
+  }, [fetchWrapper]);
 
   // Filter inflows based on selected date
-  useEffect(() => {
-    if (filterDate) {
-      const filtered = inflows.filter((inflow) => inflow.date === filterDate);
-      setFilteredInflows(filtered);
-    } else {
-      setFilteredInflows(inflows);
-    }
-  }, [filterDate, inflows]);
+  // useEffect(() => {
+  //   if (filterDate) {
+  //     const filtered = inflows.filter((inflow) => inflow.date === filterDate);
+  //     setFilteredInflows(filtered);
+  //   } else {
+  //     setFilteredInflows(inflows);
+  //   }
+  // }, [filterDate, inflows]);
 
   // Calculate total amount for a row
   const calculateTotalAmount = (row: ProjectedInflow) => {
@@ -88,73 +116,36 @@ const ProjectedInflowPage = () => {
     }, 0);
   };
 
-   const isBeforeAllowedEditDate = (dateString: string) => {
-     const today = new Date();
-     today.setHours(0, 0, 0, 0); // Normalize to start of day
+  const isBeforeAllowedEditDate = (dateString: string) => {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0); // Normalize to start of day
 
-     const rowDate = new Date(dateString);
-     rowDate.setHours(0, 0, 0, 0); // Normalize to start of day
+    const rowDate = new Date(dateString);
+    rowDate.setHours(0, 0, 0, 0); // Normalize to start of day
 
-     const diffInTime = today.getTime() - rowDate.getTime();
-     const diffInDays = diffInTime / (1000 * 3600 * 24);
+    const diffInTime = today.getTime() - rowDate.getTime();
+    const diffInDays = diffInTime / (1000 * 3600 * 24);
 
-     return diffInDays > 2; // 🚨 If more than 2 days old, return true (disable editing)
-   };
+    return diffInDays > 2; // 🚨 If more than 2 days old, return true (disable editing)
+  };
 
   // Handle loading inflows for the current month on page load
   useEffect(() => {
-    const currentDate = new Date();
-    const currentMonth = `${currentDate.getFullYear()}-${String(
-      currentDate.getMonth() + 1
-    ).padStart(2, "0")}`;
-
-    setMonth(currentMonth);
-    fetchInflowsForMonth(currentMonth);
+    fetchInflowsForMonth();
   }, [fetchInflowsForMonth]);
 
   return (
     <div className="bg-gray-100 min-h-screen">
-      <Banner
-        title="Projected Inflows"
-        action={
-          <div className="flex space-x-4 items-center">
-            <label htmlFor="month">Select a month</label>
-            <input
-              name="month"
-              type="month"
-              value={month}
-              onChange={(e) => {
-                const selectedMonth = e.target.value;
-                setMonth(selectedMonth);
-                fetchInflowsForMonth(selectedMonth);
-              }}
-              className="border rounded px-3 py-2"
-            />
-            <span>OR</span>
-            <CreateInflowDialog />
-          </div>
-        }
-      />
+      <Banner title="Projected Inflows" action={<CreateInflowDialog />} />
 
       <div className="mt-2">
-        <div className="flex justify-end items-center space-x-4 mb-2">
-          <label htmlFor="filter-date" className="font-medium text-gray-700">
-            Filter by Date:
-          </label>
-          <input
-            name="filter-date"
-            type="date"
-            value={filterDate}
-            onChange={(e) => setFilterDate(e.target.value)}
-            className="border rounded px-3 py-2"
-          />
-          <button
-            onClick={() => setFilterDate("")}
-            className="px-4 py-2 bg-gray-500 text-white rounded hover:bg-gray-600"
-          >
-            Clear Filter
-          </button>
-        </div>
+        <DateRangeFilter
+          onFilterChange={(start, end) => {
+            setStartDate(start);
+            setEndDate(end);
+            setFilteredInflows(filterByDateRange(inflows, start, end));
+          }}
+        />
       </div>
 
       <div className="overflow-x-auto bg-white shadow rounded-lg mt-6">
@@ -184,7 +175,9 @@ const ProjectedInflowPage = () => {
                     <TableCell key={colIndex} className="px-6 py-4">
                       ₹
                       {formatCurrency(
-                        parseFloat(row[column as keyof ProjectedInflow] as string)
+                        parseFloat(
+                          row[column as keyof ProjectedInflow] as string
+                        )
                       ) || "0.00"}
                     </TableCell>
                   ))}
@@ -220,7 +213,7 @@ const ProjectedInflowPage = () => {
         <EditInflowDialog
           inflow={selectedInflow}
           onClose={() => setSelectedInflow(null)}
-          onSuccess={() => fetchInflowsForMonth(month)}
+          onSuccess={() => fetchInflowsForMonth()}
         />
       )}
     </div>
