@@ -15,7 +15,7 @@ const Navbar = ({ toggleSidebar }: { toggleSidebar: () => void }) => {
 
   return (
     <header className="bg-white shadow-sm p-4 flex flex-col sm:flex-row justify-between items-center">
-      <div className="flex items-center gap-4">
+      <div className="flex items-center gap-2 ">
         {/* Sidebar Toggle Button */}
         <button
           onClick={toggleSidebar}

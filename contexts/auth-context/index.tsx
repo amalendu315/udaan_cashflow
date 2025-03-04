@@ -10,15 +10,16 @@ import {
 } from "react";
 import {jwtDecode} from "jwt-decode";
 
-interface User {
-  Id: number;
+interface lser {
+  id: number;
   username: string;
   email: string;
   created_at: string; // or Date if you want to parse it
   updated_at: string; // or Date
   role: string;
-  role_id:string;
-  hotels: string | string[]; // Array of hotel names
+  role_id: string;
+  hotel_ids: number[]; // Array of hotel ids
+  hotel_names: string[]; // Array of hotel ids
 }
 
 interface DecodedToken {
@@ -34,7 +35,7 @@ const AuthContext = createContext<AuthContextProps | undefined>(undefined);
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const router = useRouter();
   const [token, setToken] = useState<string | null>(null);
-  const [user, setUser] = useState<User | null>(null);
+  const [user, setUser] = useState<lser | null>(null);
 
   useEffect(() => {
     const storedToken = localStorage.getItem("auth_token");
@@ -60,7 +61,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     }
   }, []);
 
-  const login = (token: string, user: User) => {
+  const login = (token: string, user: lser) => {
     setToken(token);
     setUser(user);
     localStorage.setItem("auth_token", token);

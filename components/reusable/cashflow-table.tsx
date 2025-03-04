@@ -25,7 +25,9 @@ interface Cashflow {
   total_payments: number;
   closing: number;
   actual_inflow_id?: number;
+  ledgers?: { id: number; name: string; amount: number }[]; // ✅ Add ledgers property
 }
+
 
 interface PaymentRequest {
   id: number;
@@ -128,7 +130,7 @@ const CashflowTable: React.FC<CashflowTableProps> = ({
     useState<Cashflow | null>(null);
   const [isActualInflowDialogOpen, setIsActualInflowDialogOpen] =
     useState(false);
-  const [editedActualInflow, setEditedActualInflow] = useState("");
+  // const [editedActualInflow, setEditedActualInflow] = useState("");
 
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [dialogData, setDialogData] = useState<PaymentBreakdown | null>(null);
@@ -164,11 +166,31 @@ const CashflowTable: React.FC<CashflowTableProps> = ({
   }, [token]);
 
   // Open Actual Inflow Edit Dialog
-  const handleEditActualInflow = (row: Cashflow) => {
-    setSelectedActualInflow(row);
-    setEditedActualInflow(row.actual_inflow.toString());
+const handleEditActualInflow = async (row: Cashflow) => {
+  try {
+    const res = await fetch(`/api/actual-inflow?date=${row.date}`, {
+      method: "GET",
+      headers: { Authorization: `Bearer ${token}` },
+    });
+
+    if (!res.ok) {
+      toast.error("Failed to fetch actual inflow data.");
+      throw new Error("Failed to fetch actual inflow data.");
+    }
+
+    const data = await res.json();
+
+    setSelectedActualInflow({
+      ...row,
+      ledgers: data.ledgers || [], // Ensure ledgers array exists
+    });
+
     setIsActualInflowDialogOpen(true);
-  };
+  } catch (error) {
+    console.error("Error fetching actual inflow:", error);
+  }
+};
+
 
   // Update Actual Inflow API Call
   const updateActualInflow = async () => {
@@ -183,7 +205,11 @@ const CashflowTable: React.FC<CashflowTableProps> = ({
         },
         body: JSON.stringify({
           date: selectedActualInflow.date,
-          amount: parseFloat(editedActualInflow),
+          ledgers: selectedActualInflow?.ledgers?.map((ledger) => ({
+            actual_inflow_id: selectedActualInflow.actual_inflow_id,
+            id: ledger.id,
+            amount: ledger.amount,
+          })),
         }),
       });
 
@@ -192,12 +218,6 @@ const CashflowTable: React.FC<CashflowTableProps> = ({
         throw new Error("Failed to update actual inflow");
       }
 
-      // await fetch(`/api/cashflow/closing`, {
-      //   method: "PUT",
-      //   headers: {
-      //     Authorization: `Bearer ${token}`,
-      //   },
-      // })
       toast.success("Actual inflow updated successfully");
 
       setIsActualInflowDialogOpen(false);
@@ -206,6 +226,7 @@ const CashflowTable: React.FC<CashflowTableProps> = ({
       console.error("Error updating actual inflow:", error);
     }
   };
+
 
   // Filter data by selected date
   const handleDateFilter = (date: string) => {
@@ -667,20 +688,20 @@ const CashflowTable: React.FC<CashflowTableProps> = ({
     "";
 
   return (
-    <div className="bg-white shadow rounded-lg p-6 overflow-x-auto">
+    <div className="bg-white shadow rounded-lg p-2 overflow-x-auto">
       {/* Date Filter */}
       <div className="flex justify-between items-center mb-4">
-        <h2 className="text-2xl font-semibold">Cashflow</h2>
+        <h2 className="text-sm font-semibold">Cashflow</h2>
         <div className="flex items-center gap-4">
           <Input
             type="date"
             value={selectedDate}
             onChange={(e) => handleDateFilter(e.target.value)}
-            className="border rounded px-4 py-2"
+            className="border rounded px-2 py-2"
           />
           <Button
             onClick={() => handleDateFilter("")}
-            className="bg-gray-500 text-white px-4 py-2 rounded"
+            className="bg-gray-500 text-white px-2 py-2 rounded"
           >
             Clear Filter
           </Button>
@@ -688,7 +709,7 @@ const CashflowTable: React.FC<CashflowTableProps> = ({
       </div>
 
       {/* Cashflow Table */}
-      <table className="w-full table-auto border-collapse">
+      <table className="w-full table-fixed border-collapse">
         <thead>
           <tr className="bg-gray-50 text-gray-600 uppercase text-sm leading-normal">
             <th className="py-3 px-6 text-left">Date</th>
@@ -704,10 +725,10 @@ const CashflowTable: React.FC<CashflowTableProps> = ({
               const isDisabled = isBeforeAllowedEditDate(row?.date);
               return (
                 <tr key={row.date} className="hover:bg-gray-100">
-                  <td className="py-3 px-6 text-left whitespace-nowrap">
+                  <td className="py-1 px-4 text-left whitespace-nowrap">
                     {formatReadableDate(row.date)}
                   </td>
-                  <td className="py-3 px-6 text-right">
+                  <td className="py-1 px-4 text-right">
                     <Button
                       variant="secondary"
                       onClick={() =>
@@ -785,7 +806,7 @@ const CashflowTable: React.FC<CashflowTableProps> = ({
           onOpenChange={setIsActualInflowDialogOpen}
         >
           <DialogContent className="max-w-lg w-full overflow-auto">
-            <DialogTitle className="text-xl font-bold">
+            <DialogTitle className="text-lg font-semibold">
               Edit Actual Inflow
             </DialogTitle>
             <div className="space-y-4">
@@ -795,16 +816,25 @@ const CashflowTable: React.FC<CashflowTableProps> = ({
                 </label>
                 <Input type="text" value={selectedActualInflow.date} disabled />
               </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700">
-                  Amount
-                </label>
-                <Input
-                  type="number"
-                  value={editedActualInflow}
-                  onChange={(e) => setEditedActualInflow(e.target.value)}
-                />
-              </div>
+              {selectedActualInflow.ledgers?.map((ledger, index) => (
+                <div key={ledger.id}>
+                  <label className="block text-sm font-medium text-gray-700">
+                    {ledger.name}
+                  </label>
+                  <Input
+                    type="number"
+                    value={ledger.amount}
+                    onChange={(e) => {
+                      const newLedgers = [...selectedActualInflow.ledgers!];
+                      newLedgers[index].amount = Number(e.target.value);
+                      setSelectedActualInflow((prev) => ({
+                        ...prev!,
+                        ledgers: newLedgers,
+                      }));
+                    }}
+                  />
+                </div>
+              ))}
               <Button
                 onClick={updateActualInflow}
                 className="w-full bg-blue-500 text-white py-2 rounded"
@@ -819,11 +849,11 @@ const CashflowTable: React.FC<CashflowTableProps> = ({
       {/* Payment Breakdown Dialog */}
       {isDialogOpen && dialogData && (
         <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-          <DialogContent className="max-w-6xl w-full max-h-[80vh] overflow-y-scroll">
-            <DialogTitle className="text-xl font-bold">
+          <DialogContent className="max-w-7xl w-full max-h-[80vh] overflow-y-scroll">
+            <DialogTitle className="text-lg font-semibold">
               Payment Breakdown for {payment_date}
             </DialogTitle>
-            <div className="space-y-8 scroll-auto">
+            <div className="space-y-4 scroll-auto">
               {dialogData.paymentRequests.length > 0 && (
                 <DataTable
                   columns={paymentRequestColumns}

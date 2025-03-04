@@ -68,7 +68,7 @@ const UserDashboardPage = () => {
       {/* Main Content */}
       <div className="container mx-auto px-6 py-6">
         {/* Summary Cards */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
           {summaryCards.map((card, index) => (
             <SummaryCard
               key={index}

@@ -43,10 +43,10 @@ export function DataTable<TData>({
   });
 
   return (
-    <div className="space-y-6 bg-white dark:bg-gray-900 shadow rounded-lg p-6">
+    <div className="space-y-4 bg-white dark:bg-gray-900 shadow rounded-lg p-6">
       {/* Title and Global Filter */}
       <div className="flex flex-wrap items-center justify-between gap-4">
-        <h1 className="text-lg font-bold text-gray-800 dark:text-white">
+        <h1 className="text-sm font-bold text-gray-800 dark:text-white">
           {title}
         </h1>
         {/* <input
@@ -66,7 +66,7 @@ export function DataTable<TData>({
               headerGroup.headers.map((header) => (
                 <TableHead
                   key={header.id}
-                  className="px-4 py-2 text-left text-gray-600 dark:text-gray-300 font-semibold"
+                  className="px-2 py-1 text-left text-gray-600 dark:text-gray-300 text-xs font-semibold" // ✅ Reduce padding & font size
                 >
                   {header.isPlaceholder
                     ? null
@@ -89,7 +89,7 @@ export function DataTable<TData>({
                 {row.getVisibleCells().map((cell) => (
                   <TableCell
                     key={cell.id}
-                    className="px-4 py-2 text-gray-700 dark:text-gray-300"
+                    className="px-2 py-1 text-gray-700 dark:text-gray-300 text-xs whitespace-nowrap" // ✅ Reduce padding & force single line
                   >
                     {flexRender(cell.column.columnDef.cell, cell.getContext())}
                   </TableCell>
@@ -100,7 +100,7 @@ export function DataTable<TData>({
             <TableRow>
               <TableCell
                 colSpan={columns.length}
-                className="text-center text-gray-600 dark:text-gray-300 py-4"
+                className="text-center text-gray-600 dark:text-gray-300 py-2 text-xs"
               >
                 No data available
               </TableCell>

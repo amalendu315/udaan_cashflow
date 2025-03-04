@@ -8,14 +8,25 @@ import toast from "react-hot-toast";
 
 // Define the User interface
 export interface User {
-  Id: number;
+  id: number;
   username: string;
   email: string;
   created_at: string; // or Date if you want to parse it
   updated_at: string; // or Date
   role: string;
   role_id:string;
-  hotels: string | string[]; // Array of hotel names
+  hotels: UserHotels[]; // Array of hotel names
+  approvers: UserApprovers[];
+}
+
+export interface UserHotels {
+  Id: number;
+  name: string;
+}
+
+export interface UserApprovers {
+  id: number;
+  name: string;
 }
 
 // Define props that need to be passed into getUserColumns
@@ -33,11 +44,12 @@ export const getUserColumns = ({
 }: GetUserColumnsProps): ColumnDef<User>[] => {
   // Function to handle user deletion
   const handleDelete = async (userData: User) => {
+    console.log('userData', userData)
     if (
       confirm(`Are you sure you want to delete user: ${userData.username}?`)
     ) {
       try {
-        const res = await fetch(`/api/users/${userData.Id}`, {
+        const res = await fetch(`/api/users/${userData.id}`, {
           method: "DELETE",
           headers: {
             "Content-Type": "application/json",
@@ -63,7 +75,7 @@ export const getUserColumns = ({
     {
       id: "serial_number",
       header: "Sl No.",
-      cell: ({ row }) => row.index + 1, // Generate serial number dynamically
+      cell: ({ row }) => row.index + 1,
     },
     {
       accessorKey: "username",
@@ -81,17 +93,12 @@ export const getUserColumns = ({
       accessorKey: "hotels",
       header: "Hotels",
       cell: ({ row }) => {
-        const hotels = Array.isArray(row.original.hotels)
-          ? row.original.hotels
-          : typeof row.original.hotels === "string"
-          ? row.original.hotels.split(",") // ✅ Convert string to array if necessary
-          : [];
-
+        const hotels: UserHotels[] = row.original.hotels;
         return hotels.length > 0 ? (
           <div className="flex flex-col space-y-1">
             {hotels.map((hotel, index) => (
               <span key={index} className="block">
-                {hotel}
+                {hotel.name}
               </span>
             ))}
           </div>
@@ -101,11 +108,29 @@ export const getUserColumns = ({
       },
     },
     {
+      accessorKey: "approvers",
+      header: "Approvers",
+      cell: ({ row }) => {
+        const approvers: UserApprovers[] = row.original.approvers;
+        return approvers.length > 0 ? (
+          <div className="flex flex-col space-y-1">
+            {approvers.map((approver, index) => (
+              <span key={index} className="block">
+                {approver.name}
+              </span>
+            ))}
+          </div>
+        ) : (
+          <span className="text-gray-500">No Approvers Assigned</span>
+        );
+      },
+    },
+    {
       id: "actions",
       header: "Actions",
       cell: ({ row }) => (
         <div className="flex space-x-2">
-          <UpdateUserDialog userId={row.original.Id} fetchUsers={fetchUsers} />
+          <UpdateUserDialog userId={row.original.id} fetchUsers={fetchUsers} />
           {userRole === "System-Admin" && (
             <Button
               variant="destructive"

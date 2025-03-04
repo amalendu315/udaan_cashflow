@@ -12,10 +12,14 @@ interface Option {
   id: number;
   name: string;
 }
-
+interface Approver {
+  id: number;
+  name: string;
+}
 interface Subadmin {
   id: number;
-  username: string;
+  name: string;
+  approvers: Approver[];
 }
 
 interface PaymentRequestForm {
@@ -33,6 +37,8 @@ interface PaymentRequestForm {
   attachment2: File | null;
   attachment3: File | null;
 }
+
+
 
 const PaymentRequestPage = () => {
     const { hotels } = useHotels();
@@ -54,7 +60,7 @@ const PaymentRequestPage = () => {
        attachment3: null,
      });
 
-     const [subadmins, setSubadmins] = useState<Subadmin[]>([]);
+     const [subadmins, setSubadmins] = useState<Subadmin>({ id: 0, name: "", approvers: [] });
      const [departments, setDepartments] = useState<Option[]>([]);
      const [paymentGroups, setPaymentGroups] = useState<Option[]>([]);
      const [ledgers, setLedgers] = useState<Option[]>([]);
@@ -66,13 +72,12 @@ const PaymentRequestPage = () => {
        const fetchData = async () => {
          try {
            const [
-             subadminsRes,
              departmentsRes,
              paymentGroupsRes,
              ledgersRes,
              vendorsRes,
+              usersRes,
            ] = await Promise.all([
-             fetch("/api/subadmins").then((res) => res.json()),
              fetch("/api/departments", {
                headers: { Authorization: `Bearer ${token}` },
              }).then((res) => res.json()),
@@ -85,9 +90,18 @@ const PaymentRequestPage = () => {
              fetch("/api/vendors", {
                headers: { Authorization: `Bearer ${token}` },
              }).then((res) => res.json()),
+             fetch(`/api/users/${user?.id}`, {
+               headers: { Authorization: `Bearer ${token}` },
+             }).then((res) => res.json()), // ✅ Fetch users
            ]);
-
-           setSubadmins(subadminsRes);
+           console.log('userRes', usersRes)
+           const approversList : Subadmin = {
+             id: usersRes.id as number,
+             name: usersRes.username as string,
+             approvers: usersRes.approvers as Approver[],
+           };
+           console.log('approversList', approversList)
+           setSubadmins(approversList); // ✅ Store approvers in state
            setDepartments(departmentsRes);
            setPaymentGroups(paymentGroupsRes);
            setLedgers(ledgersRes);
@@ -235,11 +249,12 @@ const PaymentRequestPage = () => {
               <option value="" disabled>
                 Select Payment Group
               </option>
-              {paymentGroups?.map((group) => (
-                <option key={group.id} value={group.id}>
-                  {group.name}
-                </option>
-              ))}
+              {paymentGroups !== null &&
+                paymentGroups?.map((group) => (
+                  <option key={group.id} value={group.id}>
+                    {group.name}
+                  </option>
+                ))}
             </select>
           </div>
 
@@ -328,6 +343,7 @@ const PaymentRequestPage = () => {
               name="date"
               value={formData.date}
               onChange={handleChange}
+              min={new Date().toISOString().split("T")[0]} // ✅ This disables past dates
               className="w-full p-3 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
             />
           </div>
@@ -354,14 +370,14 @@ const PaymentRequestPage = () => {
               value={formData.approval_by}
               onChange={handleChange}
               className="w-full p-3 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-              disabled={user?.role === "Admin" || user?.role === "System-Admin"}
+              disabled={user?.role === "System-Admin"}
             >
               <option value="" disabled>
                 Select Approval By
               </option>
-              {subadmins.map((subadmin) => (
-                <option key={subadmin.id} value={subadmin.username}>
-                  {subadmin.username}
+              {subadmins?.approvers?.map((subadmin) => (
+                <option key={subadmin.id} value={subadmin.name}>
+                  {subadmin.name}
                 </option>
               ))}
             </select>

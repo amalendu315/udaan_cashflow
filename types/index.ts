@@ -18,6 +18,7 @@ export type CreateUserRequest = {
   email: string;
   role_id: number;
   hotels: number[]; // ✅ Expecting an array of hotel IDs
+  approvers: number[]; // ✅ Expecting an array of user IDs
 };
 
 export type CreateVendorRequest = {
@@ -36,21 +37,43 @@ export type UserPayload = {
 }
 
 export interface User {
-  Id: number;
+  id: number;
   username: string;
   email: string;
-  created_at: string;
-  updated_at: string;
+  created_at: string; // or Date if you want to parse it
+  updated_at: string; // or Date
   role: string;
-  role_id:string;
-  hotels: string | string[]; // ✅ Explicitly allow both string and array types
+  role_id: string;
+  hotels: UserHotels[]; // Array of hotel names
+  approvers: UserApprovers[];
 }
 
+export interface UserHotels {
+  Id: number;
+  name: string;
+}
+
+export interface UserApprovers {
+  id: number;
+  name: string;
+}
+
+interface lser {
+  id: number;
+  username: string;
+  email: string;
+  created_at: string; // or Date if you want to parse it
+  updated_at: string; // or Date
+  role: string;
+  role_id: string;
+  hotel_ids: number[]; // Array of hotel ids
+  hotel_names: string[]; // Array of hotel ids
+}
 
 export interface AuthContextProps {
   token: string | null;
-  user: User | null;
-  login: (token: string, user: User) => void;
+  user: lser | null;
+  login: (token: string, user: lser) => void;
   logout: () => void;
   isAuthenticated: boolean;
 }
@@ -92,4 +115,9 @@ export interface ProjectedInflow {
   id: number;
   date: string;
   [key: string]: number | string;
+}
+
+export interface ApprovePaymentRequestInterface {
+  message: string;
+  status: number;
 }

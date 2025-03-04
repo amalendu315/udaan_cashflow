@@ -12,7 +12,7 @@ const LedgersPage = () => {
   const { ledgers, fetchLedgers } = useLedgers();
 
   return (
-    <div className="p-6 bg-gray-100 min-h-screen">
+    <div className="bg-gray-100 min-h-screen">
       <Banner title="Ledger Management" action={<CreateLedgerDialog />} />
       <DataTable columns={getLedgerColumns({fetchLedgers, token:token!, userRole:user?.role})} data={ledgers} title="Ledgers" />
     </div>

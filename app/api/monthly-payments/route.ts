@@ -45,20 +45,76 @@ export async function GET() {
 }
 // POST: Create a new monthly payment
 export async function POST(req: NextRequest) {
-  const { isAuthorized, user, message } = await verifyAuth(req, ["Admin","System-Admin"]);
+  const { isAuthorized, user, message } = await verifyAuth(req, [
+    "Admin",
+    "System-Admin",
+  ]);
 
   if (!isAuthorized) {
     return NextResponse.json({ message }, { status: 403 });
   }
 
-    const action = 'Create Monthly Payment';
-
+  const action = "Create Monthly Payment";
   const pool = await connectDb();
+
+  // Extract request payload
   const { day_of_month, ledger_id, hotel_id, amount, payment_status } =
     await req.json();
 
   try {
-    const query = `
+    // ✅ Step 1: Fetch Last Closing Balance Before Payment Date
+    const closingBalanceQuery = `
+      SELECT TOP 1 closing 
+      FROM cashflow 
+      WHERE date < DATEFROMPARTS(YEAR(GETDATE()), MONTH(GETDATE()), @day_of_month) 
+      ORDER BY date DESC;
+    `;
+
+    const closingBalanceResult = await pool
+      .request()
+      .input("day_of_month", sql.Int, day_of_month)
+      .query(closingBalanceQuery);
+
+    const previousClosing = closingBalanceResult.recordset[0]?.closing || 0;
+
+    // ✅ Step 2: Check If Actual Inflow Exists on the Payment Date
+    const actualInflowQuery = `
+      SELECT actual_inflow 
+      FROM cashflow 
+      WHERE date = DATEFROMPARTS(YEAR(GETDATE()), MONTH(GETDATE()), @day_of_month);
+    `;
+
+    const actualInflowResult = await pool
+      .request()
+      .input("day_of_month", sql.Int, day_of_month)
+      .query(actualInflowQuery);
+
+    const actualInflow = actualInflowResult.recordset[0]?.actual_inflow || 0;
+
+    // ✅ Step 3: Validate Payment Against Closing Balance
+    const newClosing = previousClosing - amount;
+
+    if (newClosing < 0) {
+      return NextResponse.json(
+        {
+          message: `Insufficient balance. Cannot create monthly payment.`,
+        },
+        { status: 400 }
+      );
+    }
+
+    // ✅ Step 4: Prevent Payment Creation If No Actual Inflow
+    if (actualInflow === 0) {
+      return NextResponse.json(
+        {
+          message: `No actual inflow exists on this date. Cannot create monthly payment.`,
+        },
+        { status: 400 }
+      );
+    }
+
+    // ✅ Step 5: Insert the Monthly Payment
+    const insertQuery = `
       INSERT INTO monthly_payments (day_of_month, ledger_id, hotel_id, amount, payment_status)
       VALUES (@day_of_month, @ledger_id, @hotel_id, @amount, @payment_status);
     `;
@@ -70,25 +126,26 @@ export async function POST(req: NextRequest) {
       .input("hotel_id", sql.Int, hotel_id)
       .input("amount", sql.Decimal(18, 2), amount)
       .input("payment_status", sql.NVarChar, payment_status)
-        .query(query);
+      .query(insertQuery);
 
-      await logAction(
-          pool,
-          user?.id || null,
-          user?.role || null,
-          "monthly_payments",
-          action,
-          `Created monthly payments for hotel id :- ${hotel_id}`
-      )
+    // ✅ Step 6: Log the Action
+    await logAction(
+      pool,
+      user?.id || null,
+      user?.role || null,
+      "monthly_payments",
+      action,
+      `Created monthly payment for hotel_id: ${hotel_id}, amount: ${amount}, day_of_month: ${day_of_month}`
+    );
 
     return NextResponse.json(
-      { message: "Payment created successfully" },
+      { message: "Monthly payment created successfully" },
       { status: 201 }
     );
   } catch (error) {
-    console.error("Error creating payment:", error);
+    console.error("Error creating monthly payment:", error);
     return NextResponse.json(
-      { message: "Error creating payment", error },
+      { message: "Error creating monthly payment", error },
       { status: 500 }
     );
   }
@@ -146,7 +203,10 @@ export async function PATCH(req: NextRequest) {
 
 // PUT: Update entire payment record
 export async function PUT(req: NextRequest) {
-  const { isAuthorized } = await verifyAuth(req, ["Admin","System-Admin"]);
+  const { isAuthorized, user } = await verifyAuth(req, [
+    "Admin",
+    "System-Admin",
+  ]);
   if (!isAuthorized) {
     return NextResponse.json({ message: "Unauthorized" }, { status: 403 });
   }
@@ -163,6 +223,72 @@ export async function PUT(req: NextRequest) {
   }
 
   try {
+    // ✅ Step 1: Fetch Previous Payment Amount
+    const previousPaymentQuery = `SELECT amount FROM monthly_payments WHERE id = @id;`;
+    const previousPaymentResult = await pool
+      .request()
+      .input("id", sql.Int, id)
+      .query(previousPaymentQuery);
+
+    if (!previousPaymentResult.recordset.length) {
+      return NextResponse.json(
+        { message: "Payment not found" },
+        { status: 404 }
+      );
+    }
+
+    const previousAmount = previousPaymentResult.recordset[0].amount;
+
+    // ✅ Step 2: Fetch Last Closing Balance Before Payment Date
+    const closingBalanceQuery = `
+      SELECT TOP 1 closing 
+      FROM cashflow 
+      WHERE date < DATEFROMPARTS(YEAR(GETDATE()), MONTH(GETDATE()), @day_of_month) 
+      ORDER BY date DESC;
+    `;
+
+    const closingBalanceResult = await pool
+      .request()
+      .input("day_of_month", sql.Int, day_of_month)
+      .query(closingBalanceQuery);
+
+    const previousClosing = closingBalanceResult.recordset[0]?.closing || 0;
+
+    // ✅ Step 3: Check If Actual Inflow Exists on the Payment Date
+    const actualInflowQuery = `
+      SELECT actual_inflow 
+      FROM cashflow 
+      WHERE date = DATEFROMPARTS(YEAR(GETDATE()), MONTH(GETDATE()), @day_of_month);
+    `;
+
+    const actualInflowResult = await pool
+      .request()
+      .input("day_of_month", sql.Int, day_of_month)
+      .query(actualInflowQuery);
+
+    const actualInflow = actualInflowResult.recordset[0]?.actual_inflow || 0;
+
+    // ✅ Step 4: Calculate Effect on Closing Balance
+    const adjustedClosing = previousClosing + previousAmount - amount; // Refund previous amount before deducting new
+
+    if (adjustedClosing < 0) {
+      return NextResponse.json(
+        { message: `Insufficient balance. Cannot update monthly payment.` },
+        { status: 400 }
+      );
+    }
+
+    // ✅ Step 5: Prevent Update If No Actual Inflow
+    if (actualInflow === 0) {
+      return NextResponse.json(
+        {
+          message: `No actual inflow exists on this date. Cannot update monthly payment.`,
+        },
+        { status: 400 }
+      );
+    }
+
+    // ✅ Step 6: Update the Monthly Payment
     const query = `
       UPDATE monthly_payments
       SET 
@@ -185,8 +311,18 @@ export async function PUT(req: NextRequest) {
       .input("payment_status", sql.NVarChar, payment_status)
       .query(query);
 
+    // ✅ Step 7: Log the Action
+    await logAction(
+      pool,
+      user?.id || null,
+      user?.role || null,
+      "monthly_payments",
+      "Update Monthly Payment",
+      `Updated monthly payment ID: ${id}, New Amount: ${amount}, Day: ${day_of_month}`
+    );
+
     return NextResponse.json(
-      { message: "Payment updated successfully" },
+      { message: "Monthly payment updated successfully" },
       { status: 200 }
     );
   } catch (error) {

@@ -14,7 +14,7 @@ import { LedgersProvider } from "@/contexts/ledger-context";
 import { MonthlyPaymentLedgersProvider } from "@/contexts/mp-ledger-context";
 import { PaymentGroupsProvider } from "@/contexts/payment-group-context";
 import { ReportsProvider } from "@/contexts/report-context";
-import { startCronJobs } from "@/lib/cron";
+// import { startCronJobs } from "@/db/lib/cron";
 
 
 const geistSans = Geist({
@@ -37,7 +37,7 @@ export default function RootLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
-  startCronJobs();
+  // startCronJobs();
   return (
     <html lang="en">
       <body

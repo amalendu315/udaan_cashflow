@@ -12,7 +12,7 @@ const PaymentGroupsPage = () => {
   const { paymentGroups, fetchPaymentGroups } = usePaymentGroups(); // Get data and fetch function from context
 
   return (
-    <div className="p-6 bg-gray-100 min-h-screen">
+    <div className="bg-gray-100 min-h-screen">
       <Banner
         title="Payment Groups Management"
         action={<CreatePaymentGroupDialog />}

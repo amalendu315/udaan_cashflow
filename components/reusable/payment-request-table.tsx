@@ -231,7 +231,7 @@
 "use client";
 
 import { useAuth, useRequests } from "@/contexts";
-import { PaymentRequest } from "@/types";
+import { ApprovePaymentRequestInterface, PaymentRequest } from "@/types";
 import { ColumnDef, Row } from "@tanstack/react-table";
 import { useEffect, useState } from "react";
 import { Button } from "../ui/button";
@@ -242,6 +242,7 @@ import { formatReadableDate } from "@/lib/utils";
 import DateRangeFilter from "./date-range-filter";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../ui/select";
 import { Input } from "../ui/input";
+import toast from "react-hot-toast";
 
 interface PaymentRequestTableProps {
   role: "System-Admin"|"Admin" | "Sub-Admin" | "User";
@@ -326,13 +327,18 @@ useEffect(() => {
        }
      );
 
-     const data = await response.json();
+     const data:ApprovePaymentRequestInterface = await response.json();
      console.log("Response Data:", data);
 
-     if (!response.ok) throw new Error(data.message || "Request failed");
-
-     fetchRequests();
-     setIsDialogOpen(false);
+     if (!response.ok) {
+      toast.error(data.message);
+      // throw new Error(data.message || "Request failed");
+     } else {
+      toast.success(data.message);
+      fetchRequests();
+      setIsDialogOpen(false);
+     };
+     
    } catch (error) {
      console.error("Error updating payment request:", error);
    }
@@ -343,25 +349,48 @@ useEffect(() => {
       id: "serial_number",
       header: "Sl No.",
       cell: ({ row }) => row.index + 1, // Generate serial number dynamically
+      meta: { className: "text-xs p-1 text-center" },
     },
-    { accessorKey: "hotel_name", header: "Hotel Name" },
     {
-      accessorKey: "date",
-      header: "Entry Date",
-      cell: ({ row }) => (
-        <div className="flex space-x-2">
-          {formatReadableDate(row?.original?.date)}
-        </div>
-      ),
+      accessorKey: "hotel_name",
+      header: "Hotel Name",
+      meta: { className: "text-xs p-1" },
     },
-    { accessorKey: "vendor_name", header: "Vendor Name" },
-    { accessorKey: "department_name", header: "Department Name" },
-    { accessorKey: "ledger_name", header: "Ledger Name" },
-    { accessorKey: "payment_group_name", header: "Payment Group" },
+    // {
+    //   accessorKey: "date",
+    //   header: "Entry Date",
+    //   cell: ({ row }) => (
+    //     <div className="flex space-x-2">
+    //       {formatReadableDate(row?.original?.date)}
+    //     </div>
+    //   ),
+    //   meta: { className: "text-xs p-1 whitespace-nowrap" },
+    // },
+    {
+      accessorKey: "vendor_name",
+      header: "Vendor Name",
+      meta: { className: "text-xs p-1" },
+    },
+    {
+      accessorKey: "department_name",
+      header: "Department Name",
+      meta: { className: "text-xs p-1" },
+    },
+    {
+      accessorKey: "ledger_name",
+      header: "Ledger Name",
+      meta: { className: "text-xs p-1" },
+    },
+    // {
+    //   accessorKey: "payment_group_name",
+    //   header: "Payment Group",
+    //   meta: { className: "text-xs p-1" },
+    // },
     {
       accessorKey: "amount",
       header: "Amount",
       cell: ({ getValue }) => formatCurrency(getValue<number>()),
+      meta: { className: "text-xs p-1 text-right" },
     },
     {
       accessorKey: "due_date",
@@ -371,9 +400,23 @@ useEffect(() => {
           {formatReadableDate(row?.original?.due_date)}
         </div>
       ),
+      meta: { className: "text-xs p-1 whitespace-nowrap" },
     },
-    { accessorKey: "approval_by", header: "Approval By" },
-    { accessorKey: "remarks", header: "Remarks" },
+    {
+      accessorKey: "created_by_name",
+      header: "Created By",
+      meta: { className: "text-xs p-1" },
+    },
+    {
+      accessorKey: "approval_by",
+      header: "Approval By",
+      meta: { className: "text-xs p-1" },
+    },
+    {
+      accessorKey: "remarks",
+      header: "Remarks",
+      meta: { className: "text-xs p-1" },
+    },
     {
       accessorKey: "attachments",
       header: "Attachments",
@@ -393,16 +436,17 @@ useEffect(() => {
                 href={att.url}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="text-blue-600 hover:underline"
+                className="text-blue-600 hover:underline text-sm"
               >
                 {att.label}
               </a>
             ))}
           </div>
         ) : (
-          <span className="text-gray-500">No Attachments</span>
+          <span className="text-gray-500 text-sm">No Attachments</span>
         );
       },
+      meta: { className: "text-xs p-1" },
     },
     {
       accessorKey: "status",
@@ -427,7 +471,7 @@ useEffect(() => {
 
         return (
           <span
-            className={`inline-block px-4 py-1 rounded-full text-sm text-white ${getStatusStyle(
+            className={`inline-block px-2 py-1 rounded-full text-sm text-white ${getStatusStyle(
               status
             )}`}
             style={{
@@ -441,6 +485,7 @@ useEffect(() => {
           </span>
         );
       },
+      meta: { className: "text-xs p-1" },
     },
     ...(role === "Admin" || role === "Sub-Admin" || role === "System-Admin"
       ? [
@@ -452,6 +497,7 @@ useEffect(() => {
                 {row.original.status === "Pending" ? (
                   <>
                     <Button
+                      size={"sm"}
                       onClick={() =>
                         handleActionClick(row.original, "Transfer Pending")
                       }
@@ -460,6 +506,7 @@ useEffect(() => {
                       Approve
                     </Button>
                     <Button
+                      size={"sm"}
                       onClick={() =>
                         handleActionClick(row.original, "Rejected")
                       }
@@ -470,6 +517,7 @@ useEffect(() => {
                   </>
                 ) : row.original.status === "Transfer Pending" ? (
                   <Button
+                    size={"sm"}
                     onClick={() =>
                       handleActionClick(row.original, "Transfer Completed")
                     }
@@ -480,13 +528,14 @@ useEffect(() => {
                 ) : null}
               </div>
             ),
+            meta: { className: "text-xs p-1" },
           },
         ]
       : []),
   ];
 
   return (
-    <div className="bg-white p-6 rounded shadow space-y-8">
+    <div className="bg-white p-6 rounded shadow space-y-1">
       <DateRangeFilter
         onFilterChange={(start, end) => {
           console.log("Filtering from:", start, "to:", end); // Debugging Log
@@ -496,12 +545,13 @@ useEffect(() => {
       />
 
       {/* Data Table */}
-      <DataTable
-        columns={columns}
-        data={filteredRequests}
-        title="Payment Requests"
-      />
-
+      <div className="overflow-x-auto w-full">
+        <DataTable
+          columns={columns}
+          data={filteredRequests}
+          title="Payment Requests"
+        />
+      </div>
       {/* Approve/Reject Dialog */}
       {isDialogOpen && selectedRequest && (
         <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>

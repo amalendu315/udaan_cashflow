@@ -28,6 +28,8 @@ import { CheckSquare, Edit } from "lucide-react";
 import { formatCurrency } from "@/utils";
 import DateRangeFilter from "@/components/reusable/date-range-filter";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { ApprovePaymentRequestInterface } from "@/types";
+import toast from "react-hot-toast";
 
 interface ScheduledPayment {
   id?: number;
@@ -166,20 +168,27 @@ const getFilteredPayments = (hotelName: string) => {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(modalData),
       });
+      const resClone = res.clone();
+      const response: ApprovePaymentRequestInterface = await resClone.json();
+      if (!resClone.ok) {
+        toast.error(response?.message || "Failed to save scheduled payment");
+        setModalData(null);
+        setIsDialogOpen(false);
+      } else {
+        const updatedPayment = await resClone.json();
 
-      if (!res.ok) throw new Error("Failed to save scheduled payment");
-
-      const updatedPayment = await res.json();
-
-      setPayments((prev) =>
-        isEditMode
-          ? prev.map((p) => (p.id === updatedPayment.id ? updatedPayment : p))
-          : [...prev, updatedPayment]
-      );
-
-      setModalData(null);
-      setIsDialogOpen(false);
-      fetchPayments();
+        setPayments((prev) =>
+          isEditMode
+            ? prev.map((p) => (p.id === updatedPayment.id ? updatedPayment : p))
+            : [...prev, updatedPayment]
+        );
+        toast.success(
+          response?.message || "Scheduled Payment Saved Successfully"
+        );
+        setModalData(null);
+        setIsDialogOpen(false);
+        fetchPayments();
+      }
     } catch (error) {
       console.error("Error saving scheduled payment:", error);
     }
@@ -423,15 +432,15 @@ const getFilteredPayments = (hotelName: string) => {
 
   return (
     <div className="bg-blue-50 p-6 rounded shadow-md">
-      <div className="flex justify-between items-center mb-4">
-        <h2 className="text-2xl font-semibold">Scheduled Payments</h2>
+      <div className="flex justify-between items-center mb-2">
+        <h2 className="text-xl font-semibold">Scheduled Payments</h2>
         <Button onClick={openCreateModal}>Create New</Button>
       </div>
 
       {Object.keys(groupedPayments).map((hotelName) => (
-        <div key={hotelName} className="mb-8">
-          <div className="flex justify-between items-center mb-4">
-            <h3 className="text-xl font-bold">{hotelName}</h3>
+        <div key={hotelName} className="mb-4">
+          <div className="flex justify-between items-center mb-2">
+            <h3 className="text-sm font-bold">{hotelName}</h3>
             {/* <div className="flex items-center gap-2">
               <label
                 htmlFor={`filter-${hotelName}`}

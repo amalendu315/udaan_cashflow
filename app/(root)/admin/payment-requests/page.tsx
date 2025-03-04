@@ -65,7 +65,7 @@ const {counts} = useRequests();
         title="Payment Requests"
         action={<CreatePaymentRequestDialog />}
       />
-      <div className="container mx-auto px-6 py-6">
+      <div className="container mx-auto px-4 py-4">
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
           {summaryCards.map((card, index) => (
             <SummaryCard
@@ -77,10 +77,10 @@ const {counts} = useRequests();
             />
           ))}
         </div>
-        <div className="space-y-8">
+        <div className="space-y-4">
           {tableData.map((table, index) => (
             <div key={index}>
-              <h2 className="text-lg font-semibold mb-4 text-gray-700">
+              <h2 className="text-lg font-semibold mb-2 text-gray-700">
                 {table.title}
               </h2>
               <PaymentRequestTable

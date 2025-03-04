@@ -113,7 +113,7 @@ const ProjectedInflowPage = () => {
   }, [fetchInflowsForMonth]);
 
   return (
-    <div className="p-6 bg-gray-100 min-h-screen">
+    <div className="bg-gray-100 min-h-screen">
       <Banner
         title="Projected Inflows"
         action={
@@ -136,8 +136,8 @@ const ProjectedInflowPage = () => {
         }
       />
 
-      <div className="mt-6">
-        <div className="flex justify-end items-center space-x-4 mb-4">
+      <div className="mt-2">
+        <div className="flex justify-end items-center space-x-4 mb-2">
           <label htmlFor="filter-date" className="font-medium text-gray-700">
             Filter by Date:
           </label>

@@ -2,14 +2,17 @@
   "ExpandedNodes": [
     "",
     "\\app",
+    "\\app\\(root)",
     "\\app\\api",
-    "\\app\\api\\scheduled-payments",
     "\\app\\api\\users",
     "\\app\\api\\users\\[id]",
+    "\\components",
     "\\components\\forms",
     "\\components\\forms\\user",
-    "\\contexts\\user-context"
+    "\\components\\ui",
+    "\\db",
+    "\\lib"
   ],
-  "SelectedNode": "\\package.json",
+  "SelectedNode": "\\components\\ui\\tooltip.tsx",
   "PreviewInSolutionExplorer": false
 }

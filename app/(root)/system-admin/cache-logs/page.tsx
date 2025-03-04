@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button";
 import { useAuth } from "@/contexts";
 import { formatReadableDate } from "@/lib/utils";
 import GlobalSearch from "@/components/reusable/globalSearch";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 
 interface CacheLog {
   id: number;
@@ -90,13 +91,39 @@ const CacheLogsTable = () => {
     { accessorKey: "role", header: "Role" },
     { accessorKey: "table_name", header: "Table Name" },
     { accessorKey: "action", header: "Action" },
-    { accessorKey: "details", header: "Details" },
+    {
+      accessorKey: "details",
+      header: "Details",
+      cell: ({ row }) => {
+        const details = row.original.details; // Full details text
+        const trimmedDetails =
+          details.length > 50 ? details.substring(0, 50) + "..." : details;
+
+        return (
+          <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                {/* Trimmed Text */}
+                <span className="block text-gray-700 w-full truncate cursor-pointer">
+                  {trimmedDetails}
+                </span>
+              </TooltipTrigger>
+
+              {/* Tooltip with Full Text */}
+              <TooltipContent className="max-w-xs break-words text-sm">
+                <p className="whitespace-pre-line">{details}</p>
+              </TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
+        );
+      },
+    },
   ];
 
   return (
-    <div className="p-6">
+    <div>
       <Banner title="Cache Logs" />
-      <div className="mb-4 flex justify-end">
+      <div className="mb-2 flex justify-end">
         <GlobalSearch
           searchQuery={searchQuery}
           setSearchQuery={setSearchQuery}

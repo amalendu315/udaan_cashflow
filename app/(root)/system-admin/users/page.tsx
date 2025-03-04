@@ -14,23 +14,30 @@ const UsersPage = () => {
   const [searchQuery, setSearchQuery] = useState("");
   
     // Filter vendors based on search query
-    const filteredUsers = users.filter((user) =>
-      Object.values(user).some(
-        (value) =>
-          typeof value === "string" &&
-          value.toLowerCase().includes(searchQuery.toLowerCase())
-      )
-    );
+   const filteredUsers = users.map((user) => ({
+     ...user,
+     hotels: Array.isArray(user.hotels)
+       ? user.hotels.map((hotel) =>
+           typeof hotel === "string" ? { Id: 0, name: hotel } : hotel
+         ) // ✅ Ensure hotels contain `id` and `name`
+       : [],
+     approvers: Array.isArray(user?.approvers)
+       ? user?.approvers?.map((approver) =>
+           typeof approver === "string" ? { id: 0, name: approver } : approver
+         )
+       : [],
+   }));
+
 
 
   return (
-    <div className="p-6 bg-gray-100 min-h-screen">
+    <div className="bg-gray-100 min-h-screen">
       <Banner
         title="User Management"
         action={<CreateUserDialog fetchUsers={fetchUsers} />}
       />
       {/* Global Search Component */}
-      <div className="mb-4 flex justify-end">
+      <div className="mb-2 flex justify-end mt-0">
         <GlobalSearch
           searchQuery={searchQuery}
           setSearchQuery={setSearchQuery}

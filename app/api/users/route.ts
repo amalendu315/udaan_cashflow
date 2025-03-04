@@ -1,21 +1,22 @@
-import bcrypt from 'bcryptjs';
-import { NextRequest, NextResponse } from 'next/server';
+import bcrypt from "bcryptjs";
+import { NextRequest, NextResponse } from "next/server";
 
-import { connectDb } from '@/db/config';
-import { verifyAuth } from '@/middlewares';
-import { CreateUserRequest } from '@/types';
-import { dbQuery, logAction } from '@/utils';
+import { connectDb } from "@/db/config";
+import { verifyAuth } from "@/middlewares";
+import { CreateUserRequest } from "@/types";
+import { dbQuery, logAction } from "@/utils";
 
-interface User {
+
+interface UserRecord {
   Id: number;
   username: string;
   email: string;
-  created_at: string; // or Date if you want to parse it
-  updated_at: string; // or Date
+  created_at: Date;
+  updated_at: Date;
   role: string;
-  hotels: string[]; // Array of hotel names
+  hotel_data: string | null; // Can be NULL from SQL
+  approver_data: string | null; // Can be NULL from SQL
 }
-
 
 export async function GET(req: NextRequest): Promise<NextResponse> {
   const { isAuthorized, message } = await verifyAuth(req, [
@@ -30,33 +31,58 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
 
   const pool = await connectDb();
   try {
-    // ✅ Updated query to fetch multiple hotels per user
+    // ✅ Updated query to fetch assigned approvers and hotels per user
     const query = `
-        SELECT 
-            u.Id, 
-            u.username, 
-            u.email, 
-            u.created_at, 
-            u.updated_at, 
-            r.role_name AS role,  
-            STRING_AGG(h.name, ', ') AS hotels  -- Combine multiple hotel names into a string
-        FROM users u
-        LEFT JOIN roles r ON u.role_id = r.id
-        LEFT JOIN user_hotels uh ON u.Id = uh.user_id  -- Join with user_hotels
-        LEFT JOIN hotels h ON uh.hotel_id = h.Id       -- Fetch hotel names
-        GROUP BY u.Id, u.username, u.email, u.created_at, u.updated_at, r.role_name;
+       WITH HotelData AS (
+    SELECT uh.user_id, STRING_AGG(CONCAT(h.Id, ':', h.name), ',') AS hotel_data
+    FROM user_hotels uh
+    INNER JOIN hotels h ON uh.hotel_id = h.Id
+    GROUP BY uh.user_id
+),
+ApproverData AS (
+    SELECT ua.user_id, STRING_AGG(CONCAT(a.Id, ':', a.username), ',') AS approver_data
+    FROM user_approvers ua
+    INNER JOIN users a ON ua.approver_id = a.Id
+    GROUP BY ua.user_id
+)
+SELECT 
+    u.Id, 
+    u.username, 
+    u.email, 
+    u.created_at, 
+    u.updated_at, 
+    r.role_name AS role,  
+    COALESCE(hd.hotel_data, '') AS hotel_data,  -- ✅ Avoid NULL values
+    COALESCE(ad.approver_data, '') AS approver_data
+FROM users u
+LEFT JOIN roles r ON u.role_id = r.id
+LEFT JOIN HotelData hd ON u.Id = hd.user_id  
+LEFT JOIN ApproverData ad ON u.Id = ad.user_id  
     `;
 
     const result = await dbQuery(pool, query);
 
-    // ✅ Convert hotels from comma-separated string to an array
-    const users = result.recordset.map(
-      (user: User & { hotels: string | null }) => ({
-        ...user,
-        hotels: user.hotels ? user.hotels.split(", ") : [], // Fix applied
-      })
-    );
-
+    // ✅ Use the defined `UserRecord` type instead of `any`
+    const users = result.recordset.map((user: UserRecord) => ({
+      id: user.Id,
+      username: user.username,
+      email: user.email,
+      created_at: user.created_at,
+      updated_at: user.updated_at,
+      role: user.role,
+      hotels: user.hotel_data
+        ? user.hotel_data.split(",").map((h) => {
+            const [hotelId, hotelName] = h.split(":");
+            return { id: Number(hotelId), name: hotelName };
+          })
+        : [],
+      approvers: user.approver_data
+        ? user.approver_data.split(",").map((a) => {
+            const [approverId, approverName] = a.split(":");
+            return { id: Number(approverId), name: approverName };
+          })
+        : [],
+    }));
 
     return NextResponse.json(users);
   } catch (error) {
@@ -66,7 +92,6 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
     );
   }
 }
-
 
 // export async function POST(req:NextRequest):Promise<NextResponse>{
 //     const { isAuthorized, user, message } = await verifyAuth(req, [
@@ -131,8 +156,14 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   }
 
   const action = "Create User";
-  const { username, password, email, role_id, hotels }: CreateUserRequest =
-    await req.json();
+  const {
+    username,
+    password,
+    email,
+    role_id,
+    hotels,
+    approvers,
+  }: CreateUserRequest = await req.json();
 
   // ✅ Validate input
   if (
@@ -141,7 +172,8 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     !email ||
     isNaN(role_id) ||
     !Array.isArray(hotels) ||
-    hotels.length === 0
+    hotels.length === 0 ||
+    !Array.isArray(approvers) // ✅ Validate that approvers are provided
   ) {
     return NextResponse.json({ message: "Invalid request" }, { status: 400 });
   }
@@ -172,7 +204,6 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     const userId = userResult.recordset[0].Id; // ✅ Get the newly created user ID
 
     // ✅ Step 2: Insert multiple rows into `user_hotels`
-
     const hotelParams: Record<string, unknown> = { user_id: userId };
     hotels.forEach((hotelId, index) => {
       hotelParams[`hotel_id${index}`] = hotelId;
@@ -182,16 +213,23 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
       .map((_, i) => `(@user_id, @hotel_id${i})`)
       .join(", ")}`;
 
-    const hotelResult = await dbQuery(pool, hotelInsertQuery, hotelParams);
+    await dbQuery(pool, hotelInsertQuery, hotelParams);
 
-    if (!hotelResult) {
-      return NextResponse.json(
-        { message: "Failed to assign hotels to user" },
-        { status: 500 }
-      );
+    // ✅ Step 3: Insert assigned approvers into `user_approvers`
+    if (approvers.length > 0) {
+      const approverParams: Record<string, unknown> = { user_id: userId };
+      approvers.forEach((approverId, index) => {
+        approverParams[`approver_id${index}`] = approverId;
+      });
+
+      const approverInsertQuery = `INSERT INTO user_approvers (user_id, approver_id) VALUES ${approvers
+        .map((_, i) => `(@user_id, @approver_id${i})`)
+        .join(", ")}`;
+
+      await dbQuery(pool, approverInsertQuery, approverParams);
     }
 
-    // ✅ Step 3: Log action
+    // ✅ Step 4: Log action
     await logAction(
       pool,
       user?.id || null,

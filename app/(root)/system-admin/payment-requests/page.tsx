@@ -63,7 +63,7 @@ const PaymentRequestsPage = () => {
         title="Payment Requests"
         action={<CreatePaymentRequestDialog />}
       />
-      <div className="container mx-auto px-6 py-6">
+      <div className="container mx-auto px-1 py-1">
         {/* Summary Cards */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
           {summaryCards.map((card, index) => (
@@ -80,7 +80,7 @@ const PaymentRequestsPage = () => {
         {/* Payment Request Tables */}
         <div className="space-y-8">
           {tableData.map((table, index) => (
-            <div key={index}>
+            <div key={index} className="overflow-x-auto max-w-full">
               <h2 className="text-lg font-semibold mb-4 text-gray-700">
                 {table.title}
               </h2>

@@ -264,7 +264,7 @@ const Sidebar = ({ isOpen }: { isOpen: boolean }) => {
   return (
     <div
       className={`bg-white text-gray-800 transition-all duration-300 h-screen ${
-        isOpen ? "w-64" : "w-16"
+        isOpen ? "w-75" : "w-22"
       } border-r border-gray-200`}
     >
       <aside className="flex flex-col h-full">
@@ -295,13 +295,13 @@ const Sidebar = ({ isOpen }: { isOpen: boolean }) => {
 
         {/* Navigation Links */}
         <nav className="mt-4 flex-1 overflow-y-auto">
-          <ul className="space-y-4 px-2">
+          <ul className="space-y-2 px-2">
             {roleLinks.map((link) =>
               link.submenu ? (
                 <li key={link.label}>
                   <button
                     onClick={() => toggleSubmenu(link.label)}
-                    className={`flex items-center justify-between w-full px-4 py-3 text-left rounded-lg ${
+                    className={`flex items-center justify-between w-full px-2 py-2 text-left rounded-lg ${
                       isOpen ? "hover:bg-gray-100" : "justify-center"
                     }`}
                   >
@@ -321,12 +321,12 @@ const Sidebar = ({ isOpen }: { isOpen: boolean }) => {
                       ))}
                   </button>
                   {openSubmenus[link.label] && isOpen && (
-                    <ul className="mt-2 space-y-2 pl-6">
+                    <ul className="mt-2 space-y-2 pl-3">
                       {link.submenu.map((subLink) => (
                         <li key={subLink.label}>
                           <Link
                             href={subLink.href}
-                            className={`flex items-center gap-4 px-3 py-2 rounded-lg ${
+                            className={`flex items-center gap-4 px-2 py-2 rounded-lg ${
                               pathname === subLink.href
                                 ? "bg-blue-50 border-l-4 border-blue-500"
                                 : "hover:bg-gray-100"
@@ -348,7 +348,7 @@ const Sidebar = ({ isOpen }: { isOpen: boolean }) => {
                 <li key={link.label}>
                   <Link
                     href={link.href || "#"}
-                    className={`flex items-center gap-4 px-4 py-3 rounded-lg ${
+                    className={`flex items-center gap-3 px-2 py-2 rounded-lg ${
                       isOpen ? "hover:bg-gray-100" : "justify-center"
                     } ${
                       pathname === link.href

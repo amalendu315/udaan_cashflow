@@ -11,8 +11,9 @@ export async function GET(
 ) {
   const { isAuthorized, message } = await verifyAuth(req, [
     "Admin",
-    "Sub-Admin",
     "System-Admin",
+    "Sub-Admin",
+    "User",
   ]);
   if (!isAuthorized) {
     return NextResponse.json({ message }, { status: 403 });
@@ -28,15 +29,26 @@ export async function GET(
   try {
     const query = `
       SELECT 
-        u.id, u.username, u.email, u.role_id, r.role_name,
-        STRING_AGG(h.id, ',') AS hotel_ids, 
-        STRING_AGG(h.name, ', ') AS hotel_names
-      FROM users u
-      INNER JOIN roles r ON u.role_id = r.id
-      LEFT JOIN user_hotels uh ON u.id = uh.user_id
-      LEFT JOIN hotels h ON uh.hotel_id = h.id
-      WHERE u.id = @id
-      GROUP BY u.id, u.username, u.email, u.role_id, r.role_name
+    u.id, 
+    u.username, 
+    u.email, 
+    u.role_id, 
+    r.role_name,
+    STRING_AGG(CONCAT(h.id, ':', h.name), ',') AS hotel_data,
+    (
+        SELECT STRING_AGG(CONCAT(ua.approver_id, ':', COALESCE(a.username, 'Unknown')), ',')
+        FROM user_approvers ua
+        LEFT JOIN users a ON ua.approver_id = a.id
+        WHERE ua.user_id = u.id
+    ) AS approver_data
+FROM users u
+INNER JOIN roles r ON u.role_id = r.id
+LEFT JOIN user_hotels uh ON u.id = uh.user_id
+LEFT JOIN hotels h ON uh.hotel_id = h.id
+WHERE u.id = @id
+GROUP BY u.id, u.username, u.email, u.role_id, r.role_name;
+
+
     `;
 
     const result = await dbQuery(pool, query, { id: userId });
@@ -48,9 +60,29 @@ export async function GET(
     const user = result.recordset[0];
 
     return NextResponse.json({
-      ...user,
-      hotel_ids: user.hotel_ids ? user.hotel_ids.split(",").map(Number) : [],
-      hotel_names: user.hotel_names ? user.hotel_names.split(", ") : [],
+      id: user.id,
+      username: user.username,
+      email: user.email,
+      role_id: user.role_id,
+      role_name: user.role_name,
+      hotels: user.hotel_data
+        ? user.hotel_data.split(",").map((h: string) => {
+            const [hotelId, hotelName] = h.split(":");
+            return { id: Number(hotelId), name: hotelName };
+          })
+        : [],
+      approvers: user.approver_data
+        ? user.approver_data
+            .split(",")
+            .map((a: string) => {
+              const [approverId, approverName] = a.split(":");
+              return {
+                id: Number(approverId) || null, // ✅ Ensure correct number format
+                name: approverName || "Unknown", // ✅ Ensure name exists
+              };
+            })
+            .filter((approver:{id:number, name:string}) => approver.id !== null) // ✅ Remove invalid IDs
+        : [],
     });
   } catch (error) {
     return NextResponse.json(
@@ -60,8 +92,10 @@ export async function GET(
   }
 }
 
-
-export async function PUT(req: NextRequest, context: { params: Promise<{ id: string }> } ) {
+export async function PUT(
+  req: NextRequest,
+  context: { params: Promise<{ id: string }> }
+) {
   const { isAuthorized, message, user } = await verifyAuth(req, [
     "Admin",
     "System-Admin",
@@ -69,15 +103,14 @@ export async function PUT(req: NextRequest, context: { params: Promise<{ id: str
   if (!isAuthorized) {
     return NextResponse.json({ message }, { status: 403 });
   }
-const { id } = await(context.params);
+
+  const { id } = await context.params;
   const userId = parseInt(id, 10);
   if (isNaN(userId)) {
     return NextResponse.json({ message: "Invalid user ID" }, { status: 400 });
   }
 
-  const { username, email, role_id, hotels } = await req.json();
-
-  console.log(username, email, userId, role_id, hotels);
+  const { username, email, role_id, hotels, approvers } = await req.json();
 
   if (!Array.isArray(hotels) || hotels.length === 0) {
     return NextResponse.json(
@@ -88,7 +121,7 @@ const { id } = await(context.params);
 
   const pool = await connectDb();
   try {
-    // ✅ Update User Details
+    // ✅ Step 1: Update User Details
     const updateUserQuery = `
       UPDATE users SET
         username = @username,
@@ -104,12 +137,12 @@ const { id } = await(context.params);
       role_id,
     });
 
-    // ✅ Remove Existing Hotel Assignments
+    // ✅ Step 2: Remove Existing Hotel Assignments
     await dbQuery(pool, `DELETE FROM user_hotels WHERE user_id = @id`, {
       id: userId,
     });
 
-    // ✅ Insert New Hotel Assignments
+    // ✅ Step 3: Insert New Hotel Assignments
     for (const hotelId of hotels) {
       await dbQuery(
         pool,
@@ -118,6 +151,23 @@ const { id } = await(context.params);
       );
     }
 
+    // ✅ Step 4: Remove Previous Approvers
+    await dbQuery(pool, `DELETE FROM user_approvers WHERE user_id = @id`, {
+      id: userId,
+    });
+
+    // ✅ Step 5: Insert New Approvers
+    if (Array.isArray(approvers) && approvers.length > 0) {
+      for (const approverId of approvers) {
+        await dbQuery(
+          pool,
+          `INSERT INTO user_approvers (user_id, approver_id) VALUES (@userId, @approverId)`,
+          { userId, approverId }
+        );
+      }
+    }
+
+    // ✅ Step 6: Log Action
     await logAction(
       pool,
       user?.id || null,
@@ -141,6 +191,7 @@ const { id } = await(context.params);
 
 
 
+
 export async function DELETE(
   req: NextRequest,
   context: { params: Promise<{ id: string }> }
@@ -161,19 +212,29 @@ export async function DELETE(
 
   const pool = await connectDb();
   try {
-    // ✅ Remove user-hotel associations first
+    // ✅ Step 1: Remove user from `user_approvers`
+    await dbQuery(
+      pool,
+      `DELETE FROM user_approvers WHERE user_id = @id OR approver_id = @id`,
+      {
+        id: userId,
+      }
+    );
+
+    // ✅ Step 2: Remove user-hotel associations
     await dbQuery(pool, `DELETE FROM user_hotels WHERE user_id = @id`, {
       id: userId,
     });
 
-    // ✅ Delete user
+    // ✅ Step 3: Delete user
     const deleteUserQuery = `DELETE FROM users WHERE id = @id`;
     const result = await dbQuery(pool, deleteUserQuery, { id: userId });
 
-    if (!result.rowsAffected[0]) {
+    if (!result.rowsAffected || result.rowsAffected < 1) {
       return NextResponse.json({ message: "User not found" }, { status: 404 });
     }
 
+    // ✅ Step 4: Log action
     await logAction(
       pool,
       user?.id || null,
@@ -194,4 +255,5 @@ export async function DELETE(
     );
   }
 }
+
 

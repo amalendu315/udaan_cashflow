@@ -361,7 +361,7 @@ export async function POST(
   req: NextRequest,
   context: { params: Promise<{ id: string }> }
 ) {
-  // Verify authentication
+  // ✅ Step 1: Verify Authentication
   const { isAuthorized, user } = await verifyAuth(req, [
     "Admin",
     "Sub-Admin",
@@ -371,17 +371,15 @@ export async function POST(
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
- const contentType = req.headers.get("content-type") || "";
+  const contentType = req.headers.get("content-type") || "";
+  if (!contentType.includes("multipart/form-data")) {
+    return NextResponse.json(
+      { message: "Invalid Content-Type. Expected multipart/form-data." },
+      { status: 400 }
+    );
+  }
 
- if (!contentType.includes("multipart/form-data")) {
-   return NextResponse.json(
-     { message: "Invalid Content-Type. Expected multipart/form-data." },
-     { status: 400 } // ✅ Use 400 Bad Request instead of 500
-   );
- }
-
-
-  // Extract and validate payment request ID
+  // ✅ Step 2: Extract & Validate Payment Request ID
   const { id } = await context.params;
   const requestId = parseInt(id, 10);
   if (isNaN(requestId)) {
@@ -391,36 +389,86 @@ export async function POST(
     );
   }
 
-  // Parse multipart form data
- const formData = await req.formData();
+  // ✅ Step 3: Parse Form Data
+  const formData = await req.formData();
   const status = formData.get("status") as string;
   const remarks = formData.get("remarks") as string;
   const paymentMethod = formData.get("payment_method") as string; // Cash or Bank Transfer
-  const attachment = formData.get("attachment") as File | null; // Uploaded file
+  const attachment = formData.get("attachment") as File | null;
 
   const pool = await connectDb();
+  const transaction = pool.transaction();
 
   try {
-    const transaction = pool.transaction();
     await transaction.begin();
 
-    // Retrieve current status of the payment request
-    const query = `SELECT due_date, status FROM payment_requests WHERE id = @id`;
-    const result = await transaction
+    // ✅ Step 4: Retrieve Payment Request Details
+    const paymentQuery = `
+      SELECT due_date, status, amount
+      FROM payment_requests
+      WHERE id = @id;
+    `;
+    const paymentResult = await transaction
       .request()
       .input("id", sql.Int, requestId)
-      .query(query);
+      .query(paymentQuery);
 
-    if (!result.recordset.length) {
+    if (!paymentResult.recordset.length) {
       return NextResponse.json(
         { message: "Payment Request not found" },
         { status: 404 }
       );
     }
 
-    const prevStatus = result.recordset[0].status;
+    const { due_date, amount, status: prevStatus } = paymentResult.recordset[0];
 
-    // Handle File Upload if an attachment exists
+    // ✅ Step 5: Fetch Last Closing Balance Before Payment Date
+    const closingQuery = `
+      SELECT TOP 1 closing 
+      FROM cashflow 
+      WHERE date < @due_date 
+      ORDER BY date DESC;
+    `;
+    const closingResult = await transaction
+      .request()
+      .input("due_date", sql.Date, due_date)
+      .query(closingQuery);
+
+    const lastClosing = closingResult.recordset.length
+      ? closingResult.recordset[0].closing
+      : 0; // Default to 0 if no prior closing exists
+
+    // ✅ Step 6: Check Actual Inflow for the Due Date
+    const inflowQuery = `
+      SELECT COALESCE(SUM(amount), 0) AS actual_inflow 
+      FROM actual_inflow 
+      WHERE date = @due_date;
+    `;
+    const inflowResult = await transaction
+      .request()
+      .input("due_date", sql.Date, due_date)
+      .query(inflowQuery);
+
+    const actualInflow = inflowResult.recordset[0].actual_inflow;
+
+    // ❌ Step 7: Validate Approval Restrictions
+    if (actualInflow === 0) {
+      return NextResponse.json(
+        { message: `Approval blocked! No actual inflow for ${due_date}.` },
+        { status: 400 }
+      );
+    }
+
+    if (amount > lastClosing + actualInflow) {
+      return NextResponse.json(
+        {
+          message: `Approval blocked! Amount exceeds available balance (₹${lastClosing}).`,
+        },
+        { status: 400 }
+      );
+    }
+
+    // ✅ Step 8: Handle File Upload
     let attachmentUrl = null;
     if (attachment) {
       attachmentUrl = await uploadToS3(
@@ -428,8 +476,10 @@ export async function POST(
         `payment_proofs/${requestId}`
       );
     }
-    console.log('attachmentUrl', attachmentUrl)
-    // Update the payment request status, payment method, and file attachment
+
+    console.log("attachmentUrl", attachmentUrl);
+
+    // ✅ Step 9: Update Payment Request
     const updateQuery = `
       UPDATE payment_requests
       SET status = @status, 
@@ -453,7 +503,7 @@ export async function POST(
 
     await transaction.commit();
 
-    // Log the action
+    // ✅ Step 10: Log Action
     await logAction(
       pool,
       user?.id || null,
@@ -476,10 +526,12 @@ export async function POST(
     );
   } catch (error) {
     console.error("Error processing request:", error);
+    await transaction.rollback();
     return NextResponse.json(
       { message: "Error processing request.", error },
       { status: 500 }
     );
   }
 }
+
 

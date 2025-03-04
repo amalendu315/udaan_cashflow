@@ -1,4 +1,5 @@
 "use client";
+import CreatePaymentRequestDialog from "@/components/dialogs/payment-request/create";
 import Banner from "@/components/reusable/banner";
 import PaymentRequestTable from "@/components/reusable/payment-request-table";
 import SummaryCard from "@/components/reusable/summary-card";
@@ -56,7 +57,10 @@ const PaymentRequestsPage = () => {
 
   return (
     <div className="min-h-screen bg-gray-100">
-      <Banner title="Payment Requests" />
+      <Banner
+        title="Payment Requests"
+        action={<CreatePaymentRequestDialog />}
+      />
       <div className="container mx-auto px-6 py-6">
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
           {summaryCards.map((card, index) => (

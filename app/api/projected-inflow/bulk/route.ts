@@ -261,6 +261,18 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
         `);
       }
 
+      // ✅ Insert into actual_inflow_ledgers with the same ledgers as projected inflow
+      for (const ledgerId of ledgerIds) {
+        await transaction
+          .request()
+          .input("actual_inflow_id", sql.Int, actualInflowId)
+          .input("ledger_id", sql.Int, ledgerId)
+          .input("amount", sql.Decimal(18, 2), 0).query(`
+          INSERT INTO actual_inflow_ledgers (actual_inflow_id, ledger_id, amount)
+          VALUES (@actual_inflow_id, @ledger_id, @amount)
+        `);
+      }
+
       // Insert or update cashflow table with projected and actual inflows
       await transaction
         .request()
@@ -308,7 +320,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     return NextResponse.json(
       {
         message:
-          "Projected inflow, actual inflow, and cashflow updated successfully.",
+          "Projected inflow, actual inflow breakdown, and cashflow updated successfully.",
         rows,
       },
       { status: 201 }
@@ -321,4 +333,3 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     );
   }
 }
-

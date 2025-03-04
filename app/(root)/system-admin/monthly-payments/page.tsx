@@ -26,6 +26,8 @@ import { useAuth, useHotels } from "@/contexts";
 import { CheckSquare, Edit, Trash2 } from "lucide-react";
 import { formatCurrency } from "@/utils";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import toast from "react-hot-toast";
+import { ApprovePaymentRequestInterface } from "@/types";
 
 interface MonthlyPayment {
   id?: number;
@@ -138,7 +140,7 @@ const MonthlyPaymentsTable = () => {
       !modalData.hotel_id ||
       !modalData.amount
     ) {
-      alert("Please fill all required fields.");
+      toast.error("Please fill all the fields");
       return;
     }
 
@@ -153,20 +155,18 @@ const MonthlyPaymentsTable = () => {
         body: JSON.stringify(modalData),
       });
 
-      if (!res.ok) throw new Error("Failed to save payment");
-
-      const updatedPayment = await res.json();
-      setPayments((prev) =>
-        isEditMode
-          ? prev.map((p) => (p.id === updatedPayment.id ? updatedPayment : p))
-          : [...prev, updatedPayment]
-      );
-
-      setModalData(null);
-      setIsDialogOpen(false);
-      fetchPayments();
+      const updatedPayment:ApprovePaymentRequestInterface = await res.json();
+      if (!res.ok) {
+        toast.error(updatedPayment?.message || "Failed to save payment");
+      } else {
+        toast.success(updatedPayment?.message || "Payment saved successfully");
+        setModalData(null);
+        setIsDialogOpen(false);
+        fetchPayments();
+      };
     } catch (error) {
       console.error("Error saving payment:", error);
+      toast.error("Failed to save payment");
     }
   };
 
@@ -378,8 +378,8 @@ const MonthlyPaymentsTable = () => {
       </div>
 
       {Object.keys(groupedPayments).map((hotelName) => (
-        <div key={hotelName} className="mb-8">
-          <div className="flex justify-between items-center mb-4">
+        <div key={hotelName} className="mt-2">
+          <div className="flex justify-between items-center mb-2">
             <h3 className="text-xl font-bold">{hotelName}</h3>
             <div className="flex items-center gap-2">
               <label

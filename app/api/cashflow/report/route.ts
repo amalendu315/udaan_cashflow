@@ -147,26 +147,30 @@ export async function POST(req: NextRequest) {
 
     // 🟢 Get Cash In-Flow (Include all Ledgers, even if amount is 0)
     const inflowQuery = `
-      SELECT l.name AS ledger_name, COALESCE(SUM(pil.amount), 0) AS total_amount
-      FROM ledgers l
-      LEFT JOIN projected_inflow_ledgers pil ON l.id = pil.ledger_id
-      LEFT JOIN projected_inflow pi ON pil.projected_inflow_id = pi.id
-      AND pi.date BETWEEN @startDate AND @endDate
-      GROUP BY l.name
-    `;
+  SELECT 
+    l.name AS ledger_name, 
+    COALESCE(SUM(ail.amount), 0) AS total_amount
+  FROM ledgers l
+  LEFT JOIN actual_inflow_ledgers ail ON l.id = ail.ledger_id
+  LEFT JOIN actual_inflow ai ON ail.actual_inflow_id = ai.id
+  WHERE ai.date BETWEEN @startDate AND @endDate -- ✅ Ensure filtering by date
+  GROUP BY l.name
+`;
     const inflowResult = await pool
       .request()
       .input("startDate", sql.Date, startDate)
       .input("endDate", sql.Date, endDate)
       .query(inflowQuery);
+
     const inflows = inflowResult.recordset;
+
 
     // 🟢 Get Cash Out-Flow (Include all Payment Groups, even if amount is 0)
     const expensesQuery = `
       SELECT pg.name AS payment_group, COALESCE(SUM(pr.amount), 0) AS total_amount
       FROM payment_groups pg
       LEFT JOIN payment_requests pr ON pg.id = pr.payment_group_id
-      AND pr.date BETWEEN @startDate AND @endDate
+      AND pr.due_date BETWEEN @startDate AND @endDate
       GROUP BY pg.name
     `;
     const expensesResult = await pool

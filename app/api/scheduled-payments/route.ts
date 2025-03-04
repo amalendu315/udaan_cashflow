@@ -1,6 +1,8 @@
 import sql from "mssql";
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { connectDb } from "@/db/config";
+import { formatCurrency } from "@/utils";
+import { formatReadableDate } from "@/lib/utils";
 
 // Type Definitions
 interface ScheduledPayment {
@@ -107,14 +109,13 @@ export async function GET() {
 }
 
 // **POST: Create a new scheduled payment**
-export async function POST(req: Request) {
+export async function POST(req: NextRequest) {
   const pool = await connectDb();
   const payload: ScheduledPayment = await req.json();
 
   try {
     // ✅ Ensure total months is at least 1
     const totalMonths = calculateTotalMonths(payload.date, payload.end_date);
-
     if (totalMonths <= 0) {
       return NextResponse.json(
         { message: "Invalid date range for EMI calculation" },
@@ -139,6 +140,52 @@ export async function POST(req: Request) {
     console.log("Total Months:", totalMonths);
     console.log("Final EMI Value:", emi);
 
+    // ✅ Fetch last available closing amount
+    const lastClosingQuery = `
+      SELECT TOP 1 closing FROM cashflow 
+      WHERE date < @date
+      ORDER BY date DESC;
+    `;
+    const lastClosingResult = await pool
+      .request()
+      .input("date", sql.Date, payload.date)
+      .query(lastClosingQuery);
+
+    const lastClosing = lastClosingResult.recordset[0]?.closing || 0;
+
+    // ✅ Fetch actual inflow for the scheduled date
+    const actualInflowQuery = `
+      SELECT amount FROM actual_inflow WHERE date = @date;
+    `;
+    const actualInflowResult = await pool
+      .request()
+      .input("date", sql.Date, payload.date)
+      .query(actualInflowQuery);
+
+    const actualInflow = actualInflowResult.recordset[0]?.amount || 0;
+
+    // 🚨 **Block Payment If Actual Inflow is 0**
+    if (actualInflow === 0) {
+
+      return NextResponse.json(
+        {
+          message:
+            `Cannot create a scheduled payment. No actual inflow recorded for this date :- ${formatReadableDate(payload.date)}`,
+        },
+        { status: 400 }
+      );
+    }
+
+    // 🚨 **Block Payment If New EMI Exceeds Last Closing**
+    if (emi > lastClosing) {
+
+      return NextResponse.json(
+        { message: `Cannot create scheduled payment. Insufficient balance :- ${formatCurrency(lastClosing)}` },
+        { status: 400 }
+      );
+    }
+
+    // ✅ Insert the Scheduled Payment
     const query = `
       INSERT INTO scheduled_payments (date, ledger_id, hotel_id, total_amount, EMI, payment_term, payment_status, end_date)
       VALUES (@date, @ledger_id, @hotel_id, @total_amount, @emi, @payment_term, @payment_status, @end_date);
@@ -180,7 +227,7 @@ export async function PUT(req: Request) {
   }
 
   try {
-    // Calculate total months and EMI
+    // ✅ Step 1: Calculate total months and EMI
     const totalMonths = calculateTotalMonths(payload.date, payload.end_date);
     const emi = calculateEMI(
       payload.total_amount,
@@ -188,6 +235,72 @@ export async function PUT(req: Request) {
       totalMonths
     );
 
+    // ✅ Step 2: Fetch Previous Closing Balance Before Updating
+    const closingBalanceQuery = `
+      SELECT TOP 1 closing 
+      FROM cashflow 
+      WHERE date < @date 
+      ORDER BY date DESC;
+    `;
+
+    const closingBalanceResult = await pool
+      .request()
+      .input("date", sql.Date, payload.date)
+      .query(closingBalanceQuery);
+
+    const previousClosing = closingBalanceResult.recordset[0]?.closing || 0;
+
+    // ✅ Step 3: Check if Actual Inflow Exists on the Payment Date
+    const actualInflowQuery = `
+      SELECT actual_inflow FROM cashflow WHERE date = @date;
+    `;
+
+    const actualInflowResult = await pool
+      .request()
+      .input("date", sql.Date, payload.date)
+      .query(actualInflowQuery);
+
+    const actualInflow = actualInflowResult.recordset[0]?.actual_inflow || 0;
+
+    // ✅ Step 4: Fetch Existing Scheduled Payment Data
+    const oldPaymentQuery = `
+      SELECT EMI FROM scheduled_payments WHERE id = @id;
+    `;
+
+    const oldPaymentResult = await pool
+      .request()
+      .input("id", sql.Int, payload.id)
+      .query(oldPaymentQuery);
+
+    const oldEMI = oldPaymentResult.recordset[0]?.EMI || 0;
+
+    // ✅ Step 5: Validate Against Negative Closing
+    const newClosing = previousClosing - emi + oldEMI; // Adjusted for the change in EMI
+
+    if (newClosing < 0) {
+      return NextResponse.json(
+        {
+          message: `Cannot create scheduled payment. Insufficient balance :- ${formatCurrency(
+            previousClosing
+          )}`,
+        },
+        { status: 400 }
+      );
+    }
+
+    // ✅ Step 6: Prevent Update if No Actual Inflow Exists
+    if (actualInflow === 0) {
+      return NextResponse.json(
+        {
+          message: `Cannot update scheduled payment. No actual inflow recorded for this date :- ${formatReadableDate(
+            payload.date
+          )}`,
+        },
+        { status: 400 }
+      );
+    }
+
+    // ✅ Step 7: Update Scheduled Payment
     const query = `
       UPDATE scheduled_payments
       SET date = @date,
@@ -227,6 +340,7 @@ export async function PUT(req: Request) {
     );
   }
 }
+
 
 // **DELETE: Delete a scheduled payment**
 export async function DELETE(req: Request) {

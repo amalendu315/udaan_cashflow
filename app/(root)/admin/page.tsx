@@ -67,12 +67,12 @@ const DashboardPage = () => {
   ];
 
   return (
-    <div className="p-6 space-y-8">
+    <div className="space-y-6">
       {/* Banner */}
       <Banner title="Admin Dashboard" />
 
       {/* Summary Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
         {loading
           ? Array(3)
               .fill(null)
@@ -96,7 +96,7 @@ const DashboardPage = () => {
 
       {/* Cashflow Table */}
       <div>
-        <h2 className="text-xl font-semibold mb-4">Cashflow</h2>
+        <h2 className="text-lg font-semibold mb-4">Cashflow</h2>
         <CashflowTable readOnly={false} itemsPerPage={10}/>
       </div>
     </div>

@@ -33,6 +33,8 @@ import { formatReadableDate } from "@/lib/utils";
 import { CheckSquare, Edit, Trash2 } from "lucide-react";
 import { formatCurrency } from "@/utils";
 import DateRangeFilter from "@/components/reusable/date-range-filter";
+import toast from "react-hot-toast";
+import { ApprovePaymentRequestInterface } from "@/types";
 
 interface ScheduledPayment {
   id?: number;
@@ -170,23 +172,32 @@ const getFilteredPayments = (hotelName: string) => {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(modalData),
       });
-
-      if (!res.ok) throw new Error("Failed to save scheduled payment");
-
-      const updatedPayment = await res.json();
-
-      setPayments((prev) =>
-        isEditMode
-          ? prev.map((p) => (p.id === updatedPayment.id ? updatedPayment : p))
-          : [...prev, updatedPayment]
-      );
+       const updatedPayment:ApprovePaymentRequestInterface = await res.json();
+      if (!res.ok) {
+        toast.error(
+          updatedPayment?.message || "Failed to save scheduled payment"
+        );
+        setModalData(null);
+        setIsDialogOpen(false);
+      }else {
+        // if(isEditMode){
+        //   setPayments((prev) =>
+        //     isEditMode
+        //       ? prev.map((p) =>
+        //           p.id === updatedPayment.id ? updatedPayment : p
+        //         )
+        //       : [...prev, updatedPayment]
+        //   );
+        // }
+         toast.success(updatedPayment?.message || "Scheduled Payment Saved Successfully");
+        setModalData(null);
+        setIsDialogOpen(false);
+        fetchPayments();
+      };
       
-
-      setModalData(null);
-      setIsDialogOpen(false);
-      fetchPayments();
     } catch (error) {
       console.error("Error saving scheduled payment:", error);
+      toast.error("Failed to save scheduled payment");
     }
   };
 
@@ -198,10 +209,13 @@ const getFilteredPayments = (hotelName: string) => {
         body: JSON.stringify({ id }),
       });
 
-      if (!res.ok) throw new Error("Failed to delete scheduled payment");
+      if (!res.ok) {
+        toast.error("Failed to delete scheduled payment");
+      }
       setPayments((prev) => prev.filter((p) => p.id !== id));
     } catch (error) {
       console.error("Error deleting scheduled payment:", error);
+      toast.error("Failed to delete scheduled payment");
     }
   };
 

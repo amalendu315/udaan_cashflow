@@ -48,31 +48,31 @@ const SubAdminDashboardPage = () => {
       count: counts.scheduledPaymentsCount,
       color: "bg-blue-500",
       icon: <Calendar />,
-      route: "/admin/scheduled-payments",
+      route: "/subadmin/scheduled-payments",
     },
     {
       title: "Monthly Payments",
       count: counts.monthlyPaymentsCount,
       color: "bg-green-500",
       icon: <DollarSign />,
-      route: "/admin/monthly-payments",
+      route: "/subadmin/monthly-payments",
     },
     {
       title: "Payment Requests",
       count: counts.paymentRequestsCount,
       color: "bg-red-500",
       icon: <FileText />,
-      route: "/admin/payment-requests",
+      route: "/subadmin/payment-requests",
     },
   ];
 
   return (
-    <div className="p-6 space-y-8">
+    <div className="space-y-6">
       {/* Banner */}
-      <Banner title="Sub Admin Dashboard" />
+      <Banner title="Sub Admin Dashboard"  />
 
       {/* Summary Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
         {loading
           ? Array(3)
               .fill(null)
@@ -96,7 +96,7 @@ const SubAdminDashboardPage = () => {
 
       {/* Cashflow Table */}
       <div>
-        <h2 className="text-xl font-semibold mb-4">Cashflow</h2>
+        <h2 className="text-lg font-semibold mb-2">Cashflow</h2>
         <CashflowTable readOnly={true} itemsPerPage={10} />
       </div>
     </div>

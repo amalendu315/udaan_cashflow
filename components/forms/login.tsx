@@ -30,6 +30,7 @@ const LoginForm = () => {
             }
             const data = await res.json();
             login(data?.token, data?.user);
+            console.log('data?.user', data?.user)
             toast.success("Logged in Successfully");
         } catch (error) {
             toast.error((error as Error).message);

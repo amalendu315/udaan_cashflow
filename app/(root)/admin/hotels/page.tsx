@@ -24,10 +24,10 @@ const HotelsPage = () => {
   );
 
   return (
-    <div className="p-6 bg-gray-100 min-h-screen">
+    <div className="bg-gray-100 min-h-screen">
       <Banner title="Hotel Management" action={<CreateHotelDialog />} />
       {/* Global Search Component */}
-      <div className="mb-4 flex justify-end">
+      <div className="mb-2 flex justify-end">
         <GlobalSearch
           searchQuery={searchQuery}
           setSearchQuery={setSearchQuery}

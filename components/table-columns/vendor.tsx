@@ -67,14 +67,14 @@ export const getVendorColumns = ({
       accessorKey: "name",
       header: "Vendor Name",
     },
-    {
-      accessorKey: "phone",
-      header: "Phone",
-    },
-    {
-      accessorKey: "email",
-      header: "Email",
-    },
+    // {
+    //   accessorKey: "phone",
+    //   header: "Phone",
+    // },
+    // {
+    //   accessorKey: "email",
+    //   header: "Email",
+    // },
     {
       accessorKey: "location",
       header: "Location",
